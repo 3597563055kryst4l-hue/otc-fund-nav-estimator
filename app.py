@@ -1,0 +1,1390 @@
+from flask import Flask, request, jsonify, abort
+from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+import akshare as ak
+import pandas as pd
+import requests
+import re
+import time
+import os
+import json
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+from functools import wraps
+import numpy as np
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+
+# 安全配置
+app.config['JSON_AS_ASCII'] = False
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 限制请求体16MB
+
+# CORS配置（生产环境请限制为特定域名）
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",  # 必须是 *，不能是数组
+        "methods": ["POST", "GET", "OPTIONS"],
+        "allow_headers": ["Content-Type"],
+        "supports_credentials": True
+    }
+})
+
+# 速率限制配置
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
+
+# ==========================================
+# 通用AI服务配置 - 支持多提供商
+# ==========================================
+
+class AIProvider:
+    """AI提供商配置"""
+    
+    # 支持的提供商配置模板
+    PROVIDERS = {
+        'deepseek': {
+            'api_url': 'https://api.deepseek.com/v1/chat/completions',
+            'model': 'deepseek-chat',
+            'auth_header': 'Authorization',
+            'auth_prefix': 'Bearer ',
+            'request_format': 'openai',  # 请求格式
+            'response_path': 'choices.0.message.content',  # 响应提取路径
+        },
+        'openai': {
+            'api_url': 'https://api.openai.com/v1/chat/completions',
+            'model': 'gpt-3.5-turbo',
+            'auth_header': 'Authorization',
+            'auth_prefix': 'Bearer ',
+            'request_format': 'openai',
+            'response_path': 'choices.0.message.content',
+        },
+        'azure_openai': {
+            'api_url': '',  # 需要填写 Azure Endpoint
+            'model': 'gpt-35-turbo',
+            'auth_header': 'api-key',
+            'auth_prefix': '',
+            'request_format': 'openai',
+            'response_path': 'choices.0.message.content',
+        },
+        'anthropic': {
+            'api_url': 'https://api.anthropic.com/v1/messages',
+            'model': 'claude-3-sonnet-20240229',
+            'auth_header': 'x-api-key',
+            'auth_prefix': '',
+            'request_format': 'anthropic',
+            'response_path': 'content.0.text',
+        },
+        'gemini': {
+            'api_url': 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
+            'model': 'gemini-pro',
+            'auth_header': 'key',  # Gemini使用URL参数或header
+            'auth_prefix': '',
+            'request_format': 'gemini',
+            'response_path': 'candidates.0.content.parts.0.text',
+        },
+        'ollama': {
+            'api_url': 'http://localhost:11434/api/generate',
+            'model': 'llama2',
+            'auth_header': '',
+            'auth_prefix': '',
+            'request_format': 'ollama',
+            'response_path': 'response',
+        },
+        'openai_compatible': {
+            'api_url': '',  # 自定义兼容OpenAI的API地址
+            'model': '',    # 自定义模型名
+            'auth_header': 'Authorization',
+            'auth_prefix': 'Bearer ',
+            'request_format': 'openai',
+            'response_path': 'choices.0.message.content',
+        }
+    }
+    
+    def __init__(self):
+        # 读取环境变量配置
+        self.provider = os.environ.get('AI_PROVIDER', 'deepseek').lower()
+        self.api_key = os.environ.get('AI_API_KEY') or os.environ.get(f'{self.provider.upper()}_API_KEY')
+        self.api_url = os.environ.get('AI_API_URL') or os.environ.get(f'{self.provider.upper()}_API_URL')
+        self.model = os.environ.get('AI_MODEL')
+        
+        # 获取提供商配置
+        self.config = self.PROVIDERS.get(self.provider, self.PROVIDERS['openai_compatible']).copy()
+        
+        # 如果环境变量有设置，覆盖默认值
+        if self.api_url:
+            self.config['api_url'] = self.api_url
+        if self.model:
+            self.config['model'] = self.model
+            
+        # 向后兼容：如果设置了旧的DEEPSEEK配置，自动使用
+        if not self.api_key:
+            deepseek_key = os.environ.get('DEEPSEEK_API_KEY')
+            if deepseek_key:
+                self.provider = 'deepseek'
+                self.api_key = deepseek_key
+                self.config = self.PROVIDERS['deepseek'].copy()
+                deepseek_url = os.environ.get('DEEPSEEK_API_URL')
+                if deepseek_url:
+                    self.config['api_url'] = deepseek_url
+    
+    def is_configured(self) -> bool:
+        """检查是否已配置"""
+        return bool(self.api_key and self.config.get('api_url'))
+    
+    def get_headers(self) -> dict:
+        """获取请求头"""
+        headers = {'Content-Type': 'application/json'}
+        auth_header = self.config.get('auth_header')
+        if auth_header and self.api_key:
+            auth_prefix = self.config.get('auth_prefix', '')
+            headers[auth_header] = f'{auth_prefix}{self.api_key}'
+        return headers
+    
+    def build_request_body(self, prompt: str, temperature: float = 0.7, max_tokens: int = 2000) -> dict:
+        """构建请求体"""
+        fmt = self.config.get('request_format', 'openai')
+        model = self.config.get('model', 'gpt-3.5-turbo')
+        
+        if fmt == 'openai':
+            return {
+                'model': model,
+                'messages': [{'role': 'user', 'content': prompt}],
+                'temperature': temperature,
+                'max_tokens': max_tokens
+            }
+        elif fmt == 'anthropic':
+            return {
+                'model': model,
+                'messages': [{'role': 'user', 'content': prompt}],
+                'max_tokens': max_tokens,
+                'temperature': temperature
+            }
+        elif fmt == 'gemini':
+            return {
+                'contents': [{
+                    'parts': [{'text': prompt}]
+                }],
+                'generationConfig': {
+                    'temperature': temperature,
+                    'maxOutputTokens': max_tokens
+                }
+            }
+        elif fmt == 'ollama':
+            return {
+                'model': model,
+                'prompt': prompt,
+                'stream': False,
+                'options': {
+                    'temperature': temperature
+                }
+            }
+        else:
+            # 默认使用 OpenAI 格式
+            return {
+                'model': model,
+                'messages': [{'role': 'user', 'content': prompt}],
+                'temperature': temperature,
+                'max_tokens': max_tokens
+            }
+    
+    def extract_response(self, data: dict) -> str:
+        """从响应中提取内容"""
+        path = self.config.get('response_path', 'choices.0.message.content')
+        keys = path.split('.')
+        
+        try:
+            value = data
+            for key in keys:
+                if key.isdigit():
+                    value = value[int(key)]
+                else:
+                    value = value[key]
+            return str(value) if value else ""
+        except (KeyError, IndexError, TypeError) as e:
+            logger.error(f"无法从响应中提取内容: {e}, path={path}, data={json.dumps(data)[:500]}")
+            return ""
+    
+    def chat(self, prompt: str, temperature: float = 0.7, max_tokens: int = 2000, timeout: int = 60) -> str:
+        """发送聊天请求"""
+        if not self.is_configured():
+            raise ValueError(f"AI提供商 '{self.provider}' 未配置")
+        
+        url = self.config.get('api_url')
+        headers = self.get_headers()
+        body = self.build_request_body(prompt, temperature, max_tokens)
+        
+        # Gemini 特殊处理：API key 在 URL 参数中
+        if self.provider == 'gemini' and self.api_key:
+            url = f"{url}?key={self.api_key}"
+        
+        try:
+            response = requests.post(
+                url,
+                headers=headers,
+                json=body,
+                timeout=timeout
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"AI API错误: {response.status_code} - {response.text[:500]}")
+                raise Exception(f"AI服务返回错误: {response.status_code}")
+            
+            data = response.json()
+            content = self.extract_response(data)
+            
+            if not content:
+                raise ValueError("AI返回内容为空")
+            
+            return content
+            
+        except requests.exceptions.Timeout:
+            logger.error("AI请求超时")
+            raise Exception("AI服务请求超时")
+        except requests.exceptions.ConnectionError:
+            logger.error("无法连接到AI服务")
+            raise Exception("无法连接到AI服务，请检查网络或API地址")
+        except Exception as e:
+            logger.error(f"AI请求异常: {e}")
+            raise
+
+    def get_info(self) -> dict:
+        """获取当前配置信息（不含敏感信息）"""
+        return {
+            'provider': self.provider,
+            'model': self.config.get('model', 'unknown'),
+            'configured': self.is_configured(),
+            'api_url': self.config.get('api_url', '')[:30] + '...' if self.config.get('api_url') else ''
+        }
+
+# 初始化AI提供商
+ai_provider = AIProvider()
+
+# 向后兼容的变量
+DEEPSEEK_API_KEY = ai_provider.api_key if ai_provider.provider == 'deepseek' else None
+DEEPSEEK_API_URL = ai_provider.config.get('api_url') if ai_provider.provider == 'deepseek' else None
+
+if not ai_provider.is_configured():
+    logger.warning("⚠️  AI服务未配置，请在.env中设置 AI_API_KEY 和 AI_PROVIDER")
+    logger.info("💡 支持的AI提供商: deepseek, openai, azure_openai, anthropic, gemini, ollama, openai_compatible")
+else:
+    info = ai_provider.get_info()
+    logger.info(f"✅ AI服务已配置: {info['provider']} / {info['model']}")
+
+# ==========================================
+# 安全中间件和辅助函数
+# ==========================================
+
+def sanitize_fund_code(code: str) -> Optional[str]:
+    """清洗基金代码，确保是6位数字"""
+    if not code:
+        return None
+    code = str(code).strip()
+    # 移除所有非数字字符
+    code = re.sub(r'\D', '', code)
+    # 验证是否为6位
+    if re.match(r'^\d{6}$', code):
+        return code
+    return None
+
+def sanitize_input(text: str, max_length: int = 5000) -> str:
+    """清洗用户输入，防止Prompt Injection"""
+    if not text:
+        return ""
+    # 长度限制
+    text = text[:max_length]
+    # 移除潜在的危险字符（保留中文、英文、数字、常见标点）
+    text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9\s\.,;:!?\-_(){}\[\]\'"￥，。；：！？（）【】]', '', text)
+    return text.strip()
+
+def validate_funds_data(funds: list) -> Tuple[bool, str]:
+    """验证基金数据格式"""
+    if not isinstance(funds, list) or len(funds) == 0:
+        return False, "基金列表不能为空"
+    if len(funds) > 20:  # 限制最多20只基金，防止滥用
+        return False, "单次最多分析20只基金"
+    
+    for fund in funds:
+        if not isinstance(fund, dict):
+            return False, "基金数据格式错误"
+        if 'code' not in fund or not sanitize_fund_code(fund['code']):
+            return False, f"无效的基金代码: {fund.get('code', 'unknown')}"
+        try:
+            holding = float(fund.get('holding', 0))
+            if holding < 0 or holding > 100000000:  # 限制合理范围
+                return False, "持仓金额超出合理范围"
+        except:
+            return False, "持仓金额格式错误"
+    return True, ""
+
+# ==========================================
+# 系统一：净值回撤分析模块（默认90日高点）
+# ==========================================
+
+def get_fund_drawdown(fund_code="016665", rolling_days=90, target_date=None):
+    """
+    获取基金净值及距离近期高点的回撤幅度
+    返回的drawdown_pct为正数表示下跌幅度（如10.98表示下跌10.98%）
+    在分析器中会被转换为负数用于网格计算
+    """
+    try:
+        df = ak.fund_open_fund_info_em(symbol=fund_code, indicator="单位净值走势")
+    except Exception as e:
+        logger.error(f"获取数据失败 {fund_code}: {e}")
+        return None
+    
+    if df is None or df.empty:
+        logger.warning(f"无法获取基金 {fund_code} 数据")
+        return None
+    
+    df = df.iloc[:, :2].copy()
+    df.columns = ['date', 'nav']
+    df['date'] = pd.to_datetime(df['date'])
+    df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
+    df = df.dropna().sort_values('date')
+    
+    if target_date:
+        target_dt = pd.to_datetime(target_date)
+        target_row = df[df['date'] == target_dt]
+        if target_row.empty:
+            logger.info(f"未找到 {target_date} 的数据，将使用最新可用数据")
+            target_row = df.iloc[-1]
+        else:
+            target_row = target_row.iloc[0]
+    else:
+        target_row = df.iloc[-1]
+    
+    current_nav = float(target_row['nav'])
+    current_date = target_row['date']
+    
+    hist_df = df[df['date'] <= current_date].tail(rolling_days * 2)
+    if len(hist_df) < rolling_days:
+        logger.warning(f"近{rolling_days}个交易日数据不足，实际只有{len(hist_df)}天")
+        recent_df = hist_df
+    else:
+        recent_df = hist_df.tail(rolling_days)
+    
+    if recent_df.empty:
+        logger.warning(f"近{rolling_days}日无数据")
+        return None
+    
+    rolling_high = float(recent_df['nav'].max())
+    high_date = recent_df[recent_df['nav'] == rolling_high]['date'].iloc[-1]
+    
+    # 计算回撤（正数表示下跌百分比）
+    drawdown_pct = float((rolling_high - current_nav) / rolling_high * 100)
+    
+    result = {
+        'fund_code': str(fund_code),
+        'current_nav': float(round(current_nav, 4)),
+        'current_date': str(current_date.strftime('%Y-%m-%d')),
+        'rolling_high': float(round(rolling_high, 4)),
+        'high_date': str(high_date.strftime('%Y-%m-%d')),
+        'drawdown_pct': float(round(drawdown_pct, 2)),  # 正数表示下跌
+        'distance_from_high': float(round(rolling_high - current_nav, 4)),
+        'data_points': int(len(recent_df)),
+        'is_at_high': bool(abs(drawdown_pct) < 0.01)
+    }
+    
+    return result
+
+# ==========================================
+# 系统二：盘中估值引擎（完全保留原代码）
+# ==========================================
+
+class SmartFundEstimator:
+    def __init__(self):
+        self.index_codes = {
+            '创业板指': 'sz399006',
+            '沪深300': 'sz399300',
+            '中证500': 'sh000905',
+            '上证指数': 'sh000001',
+            '深证成指': 'sz399001',
+            '纳斯达克100': 'usQQQ',
+            '恒生指数': 'hkHSI',
+            '恒生科技': 'hkHSTECH',
+            '中证新能': 'sz399808',
+            '中证科技': 'sh000931',
+        }
+        
+        self.etf_map = {
+            '云计算': ('516510', '易方达中证云计算ETF'),
+            '大数据': ('515400', '富国中证大数据ETF'),
+            '人工智能': ('515980', '华富中证人工智能ETF'),
+            'AI': ('515980', '华富中证人工智能ETF'),
+            '芯片': ('512760', '国泰CES半导体ETF'),
+            '半导体': ('512480', '国联安中证半导体ETF'),
+            '新能源': ('516160', '南方中证新能源ETF'),
+            '光伏': ('515790', '华泰柏瑞中证光伏ETF'),
+            '碳中和': ('159790', '易方达中证碳中和ETF'),
+            '医疗': ('512170', '华宝中证医疗ETF'),
+            '医药': ('512010', '易方达沪深300医药ETF'),
+            '白酒': ('512690', '鹏华中证酒ETF'),
+            '酒': ('512690', '鹏华中证酒ETF'),
+            '军工': ('512660', '国泰中证军工ETF'),
+            '券商': ('512000', '华宝中证全指证券ETF'),
+            '证券': ('512000', '华宝中证全指证券ETF'),
+            '银行': ('512800', '华宝中证银行ETF'),
+            '地产': ('512200', '南方中证全指房地产ETF'),
+            '房地产': ('512200', '南方中证全指房地产ETF'),
+            '传媒': ('512980', '广发中证传媒ETF'),
+            '游戏': ('159869', '华夏中证动漫游戏ETF'),
+            '动漫游戏': ('159869', '华夏中证动漫游戏ETF'),
+            '科技': ('515000', '华宝中证科技龙头ETF'),
+            '5G': ('515050', '华夏中证5G通信主题ETF'),
+            '通信': ('515050', '华夏中证5G通信主题ETF'),
+            '创新药': ('159992', '银华中证创新药产业ETF'),
+            '消费电子': ('159732', '华夏国证消费电子主题ETF'),
+            '机器人': ('562500', '华夏中证机器人ETF'),
+            '机床': ('159663', '华夏中证机床ETF'),
+            '工业母机': ('159663', '华夏中证机床ETF'),
+            '稀有金属': ('159608', '嘉实中证稀有金属主题ETF'),
+            '稀土': ('516780', '华泰柏瑞中证稀土产业ETF'),
+            '有色': ('512400', '南方中证申万有色金属ETF'),
+            '有色金属': ('512400', '南方中证申万有色金属ETF'),
+            '化工': ('516020', '华宝中证细分化工产业ETF'),
+            '建材': ('159745', '国泰中证全指建筑材料ETF'),
+            '钢铁': ('515210', '国泰中证钢铁ETF'),
+            '煤炭': ('515220', '国泰中证煤炭ETF'),
+            '石油': ('501096', '易方达中证石化产业ETF'),
+            '农业': ('159825', '富国中证农业ETF'),
+            '畜牧': ('159867', '鹏华中证畜牧养殖ETF'),
+            '养殖': ('159867', '鹏华中证畜牧养殖ETF'),
+            '旅游': ('159766', '旅游ETF'),
+            '教育': ('513360', '教育ETF'),
+            '金融科技': ('516100', '金融科技ETF'),
+            '智能制造': ('516800', '智能制造ETF'),
+            '高端制造': ('516320', '高端制造ETF'),
+            '智能汽车': ('159889', '智能汽车ETF'),
+            '新能源汽车': ('516390', '新能源汽车ETF'),
+            '新能源车': ('515030', '新能源车ETF'),
+            '电池': ('159755', '电池ETF'),
+            '储能': ('159866', '储能ETF'),
+            '电力': ('159611', '电力ETF'),
+            '绿色电力': ('159669', '绿色电力ETF'),
+            '央企': ('512950', '央企ETF'),
+            '国企': ('512810', '国企ETF'),
+            '红利': ('510880', '红利ETF'),
+            '低波动': ('512260', '低波动ETF'),
+            '价值': ('510030', '价值ETF'),
+            '成长': ('510760', '成长ETF'),
+            '创业板': ('159915', '创业板ETF'),
+            '科创板': ('588000', '科创50ETF'),
+            '科创50': ('588000', '科创50ETF'),
+            '双创': ('159780', '双创ETF'),
+            '沪深300': ('510300', '沪深300ETF'),
+            '中证500': ('510500', '中证500ETF'),
+            '中证1000': ('512100', '中证1000ETF'),
+            '上证50': ('510050', '上证50ETF'),
+            '深证100': ('159901', '深证100ETF'),
+            '创业板50': ('159949', '创业板50ETF'),
+            'MSCI': ('512520', 'MSCI ETF'),
+            'A50': ('159601', 'A50ETF'),
+            '沪港深': ('517010', '易方达中证沪港深500ETF'),
+        }
+        
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        logger.info("★ 基金估值系统 v5.3 [修复市场检测版]")
+        logger.info("★ 修复：QDII市场识别 + 字段完整性")
+
+    def is_link_fund(self, fund_name: str) -> bool:
+        return bool(re.search(r'联接|link', fund_name, re.IGNORECASE))
+
+    def is_etf_code(self, code: str, name: str) -> bool:
+        code = str(code).strip()
+        if re.match(r'^(510|511|512|515|516|517|518|560|561|562|563|564|565|566|567|568|569|159)\d{3}$', code):
+            return True
+        if 'ETF' in name or 'etf' in name:
+            return True
+        return False
+
+    def find_etf_by_fund_name(self, fund_name: str) -> Tuple[Optional[str], Optional[str]]:
+        clean = re.sub(r'联接[ABC]?|Link|[A-C]$', '', fund_name, flags=re.IGNORECASE).strip()
+        
+        for keyword, (code, name) in self.etf_map.items():
+            if keyword in clean:
+                return code, name
+        
+        companies = ['易方达', '华夏', '南方', '国泰', '华宝', '广发', '富国', '嘉实', 
+                     '华泰柏瑞', '鹏华', '银华', '国联安', '华富', '汇添富', '工银', '博时']
+        for comp in companies:
+            if clean.startswith(comp):
+                keyword = clean[len(comp):].strip()
+                for kw, (code, name) in self.etf_map.items():
+                    if kw in keyword:
+                        return code, name
+                break
+        
+        return None, None
+
+    def detect_market_and_benchmark(self, holdings_df, fund_name: str) -> Tuple[str, str, float]:
+        us_count = 0
+        hk_count = 0
+        a_sh_count = 0
+        a_sz_count = 0
+        
+        for _, row in holdings_df.iterrows():
+            code = str(row['股票代码']).strip()
+            
+            if re.match(r'^[A-Z]{1,5}(\.[A-Z])?$', code):
+                us_count += 1
+            elif re.match(r'^\d{5}$', code):
+                hk_count += 1
+            elif len(code) == 6 and code.isdigit():
+                if code.startswith('6'):
+                    a_sh_count += 1
+                else:
+                    a_sz_count += 1
+        
+        total = us_count + hk_count + a_sh_count + a_sz_count
+        
+        if us_count >= 3 or (total > 0 and us_count / total > 0.5):
+            market = '美股'
+            benchmark = '纳斯达克100'
+            position = 0.90
+        elif hk_count >= 3 or (total > 0 and hk_count / total > 0.5):
+            market = '港股'
+            if '科技' in fund_name:
+                benchmark = '恒生科技'
+            else:
+                benchmark = '恒生指数'
+            position = 0.88
+        else:
+            market = 'A股'
+            gem_count = sum(1 for _, row in holdings_df.iterrows() 
+                          if str(row['股票代码']).startswith('300'))
+            if gem_count >= 4:
+                benchmark = '创业板指'
+            elif a_sh_count > a_sz_count:
+                benchmark = '沪深300'
+            else:
+                benchmark = '创业板指' if gem_count >= 2 else '沪深300'
+            position = 0.90 if (gem_count >= 4) else 0.88
+        
+        return market, benchmark, position
+
+    def get_stock_changes(self, codes: List[str], names: List[str]) -> Dict[str, float]:
+        results = {}
+        if not codes:
+            return results
+            
+        tencent_codes = []
+        mapping = {}
+        
+        for code, name in zip(codes, names):
+            code = str(code).strip()
+            
+            if len(code) == 6 and code.isdigit():
+                if code.startswith(('5', '1')):
+                    prefix = 'sh' if code.startswith('5') else 'sz'
+                    tcode = f"{prefix}{code}"
+                elif code.startswith('6'):
+                    tcode = f"sh{code}"
+                else:
+                    tcode = f"sz{code}"
+            elif len(code) == 5 and code.isdigit():
+                tcode = f"hk{code}"
+            else:
+                tcode = f"us{code.replace('.', '_')}"
+            
+            tencent_codes.append(tcode)
+            mapping[tcode] = code
+        
+        for i in range(0, len(tencent_codes), 60):
+            batch = tencent_codes[i:i+60]
+            try:
+                url = f"http://qt.gtimg.cn/q={','.join(batch)}"
+                resp = requests.get(url, headers=self.headers, timeout=15)
+                resp.encoding = 'gbk'
+                
+                for line in resp.text.split(';'):
+                    if '=' not in line:
+                        continue
+                    parts = line.split('=')
+                    if len(parts) < 2:
+                        continue
+                    
+                    match = re.search(r'(us[A-Z_]+|sh\d{6}|sz\d{6}|hk\d{5})', parts[0])
+                    if not match:
+                        continue
+                    
+                    tcode = match.group(0)
+                    orig_code = mapping.get(tcode)
+                    if not orig_code:
+                        continue
+                    
+                    fields = parts[1].strip('"').split('~')
+                    if len(fields) > 32:
+                        try:
+                            change = float(fields[32]) if fields[32] else 0.0
+                            if change == 0 and len(fields) > 4:
+                                curr = float(fields[3]) if fields[3] else 0
+                                prev = float(fields[4]) if fields[4] else 0
+                                if prev > 0:
+                                    change = (curr - prev) / prev * 100
+                            results[orig_code] = change
+                        except:
+                            results[orig_code] = 0.0
+            except Exception as e:
+                logger.error(f"行情接口错误: {e}")
+            
+            time.sleep(0.2)
+        
+        return results
+
+    def get_index_change(self, index_name: str) -> float:
+        code = self.index_codes.get(index_name, 'sz399006')
+        try:
+            url = f"http://qt.gtimg.cn/q={code}"
+            resp = requests.get(url, headers=self.headers, timeout=10)
+            resp.encoding = 'gbk'
+            if '=' in resp.text:
+                fields = resp.text.split('=')[1].strip('"').split('~')
+                if len(fields) > 32:
+                    return float(fields[32]) if fields[32] else 0.0
+        except:
+            pass
+        return 0.0
+
+    def estimate_link_fund(self, fund_code: str, fund_name: str, holding: float) -> Optional[Dict]:
+        logger.info(f"\n【{fund_name}】{fund_code} [联接基金模式]")
+        
+        try:
+            df = ak.fund_portfolio_hold_em(symbol=fund_code, date="2025")
+            if df.empty:
+                df = ak.fund_portfolio_hold_em(symbol=fund_code, date="2024")
+            
+            etf_code = None
+            etf_name = None
+            etf_ratio = 95.0
+            
+            if not df.empty:
+                latest_q = sorted(df['季度'].unique(), reverse=True)[0]
+                data = df[df['季度'] == latest_q]
+                
+                if len(data) > 0:
+                    top1 = data.iloc[0]
+                    top1_ratio = float(top1['占净值比例'])
+                    top1_name = str(top1['股票名称'])
+                    top1_code = str(top1['股票代码'])
+                    
+                    if top1_ratio > 80 and self.is_etf_code(top1_code, top1_name):
+                        etf_code = top1_code
+                        etf_name = top1_name
+                        etf_ratio = top1_ratio
+                        logger.info(f"  目标ETF: {etf_name}({etf_code}) 占比{etf_ratio:.1f}%")
+                    else:
+                        logger.warning(f"  警告：持仓占比过低({top1_ratio}%)，akshare返回了成分股")
+                        logger.info(f"  尝试通过基金名称反向查找ETF...")
+            
+            if not etf_code:
+                etf_code, etf_name = self.find_etf_by_fund_name(fund_name)
+                if etf_code:
+                    logger.info(f"  反向查找ETF: {etf_name}({etf_code}) 预估占比{etf_ratio:.1f}%")
+                else:
+                    logger.warning(f"  未能找到对应ETF，回退到普通模式")
+                    return self.estimate_normal_fund(fund_code, fund_name, holding, df)
+            
+            etf_changes = self.get_stock_changes([etf_code], [etf_name])
+            etf_change = etf_changes.get(etf_code, 0)
+            
+            if etf_change == 0:
+                logger.warning(f"  未能获取ETF行情")
+                return None
+            
+            position = min(etf_ratio * 1.02, 98) / 100
+            link_change = etf_change * position
+            profit = holding * link_change / 100
+            
+            logger.info(f"  ETF行情: {etf_change:+.2f}% | 仓位系数: {position*100:.0f}%")
+            logger.info(f"  结果: {link_change:+.2f}% | 盈亏: {profit:+,.0f}元")
+            
+            return {
+                'fund_code': str(fund_code),
+                'fund_name': str(fund_name),
+                'market': 'A股-联接',
+                'holding': float(holding),
+                'benchmark': str(etf_name),
+                'benchmark_change': float(round(etf_change, 2)),
+                'estimate_change': float(round(link_change, 2)),
+                'profit': float(round(profit, 2)),
+                'top10_ratio': float(round(etf_ratio, 1)),
+                'position_ratio': float(round(position * 100, 0)),
+                'persistence': 1.0,
+                'note': f'跟踪{etf_code}',
+                'update_time': datetime.now().strftime('%H:%M:%S')
+            }
+            
+        except Exception as e:
+            logger.error(f"  联接基金处理失败: {e}")
+            return self.estimate_normal_fund(fund_code, fund_name, holding)
+
+    def estimate_normal_fund(self, fund_code: str, fund_name: str, holding: float, df=None) -> Optional[Dict]:
+        try:
+            if df is None:
+                df = ak.fund_portfolio_hold_em(symbol=fund_code, date="2025")
+                if df.empty:
+                    df = ak.fund_portfolio_hold_em(symbol=fund_code, date="2024")
+                if df.empty:
+                    return None
+            
+            latest_q = sorted(df['季度'].unique(), reverse=True)[0]
+            data = df[df['季度'] == latest_q].head(10)
+            
+            stocks = []
+            for _, row in data.iterrows():
+                stocks.append({
+                    'code': str(row['股票代码']),
+                    'name': str(row['股票名称']),
+                    'ratio': float(row['占净值比例'])
+                })
+            
+            if not stocks:
+                return None
+            
+            market, benchmark, est_position = self.detect_market_and_benchmark(data, fund_name)
+            logger.info(f"  检测市场: {market} | 基准: {benchmark} | 估算仓位: {est_position*100:.0f}%")
+            
+            codes = [s['code'] for s in stocks]
+            names = [s['name'] for s in stocks]
+            changes = self.get_stock_changes(codes, names)
+            
+            top10_contrib = 0
+            valid_count = 0
+            for s in stocks:
+                chg = changes.get(s['code'], 0)
+                if chg != 0:
+                    top10_contrib += chg * s['ratio'] / 100
+                    valid_count += 1
+                    logger.info(f"  {s['code']}({s['name']}): {chg:+.2f}% × {s['ratio']}% = {chg * s['ratio'] / 100:+.3f}%")
+            
+            if valid_count == 0:
+                return None
+            
+            top10_ratio = sum(s['ratio'] for s in stocks)
+            bench_chg = self.get_index_change(benchmark)
+            logger.info(f"  基准{benchmark}: {bench_chg:+.2f}%")
+            
+            remaining_ratio = max(0, est_position * 100 - top10_ratio)
+            remaining_contrib = bench_chg * (remaining_ratio / 100)
+            
+            total_change = top10_contrib + remaining_contrib
+            
+            if market == '美股':
+                total_change *= 1.10
+            elif market == '港股':
+                if '科技' in fund_name:
+                    total_change *= 1.20
+                else:
+                    total_change *= 1.15
+            elif '科技' in fund_name or '科融' in fund_name:
+                total_change *= 1.20
+            elif '碳中和' in fund_name or '新能源' in fund_name:
+                total_change *= 1.30
+            
+            profit = holding * total_change / 100
+            
+            logger.info(f"  前十占比: {top10_ratio:.1f}% | 剩余补齐: {remaining_ratio:.1f}%")
+            logger.info(f"  结果: {total_change:+.2f}% | 盈亏: {profit:+,.0f}元")
+            
+            return {
+                'fund_code': str(fund_code),
+                'fund_name': str(fund_name),
+                'market': str(market),
+                'holding': float(holding),
+                'benchmark': str(benchmark),
+                'benchmark_change': float(round(bench_chg, 2)),
+                'estimate_change': float(round(total_change, 2)),
+                'profit': float(round(profit, 2)),
+                'top10_ratio': float(round(top10_ratio, 1)),
+                'position_ratio': float(round(est_position * 100, 0)),
+                'persistence': 0.75 if market == '美股' else (0.65 if market == '港股' else 0.55),
+                'update_time': datetime.now().strftime('%H:%M:%S')
+            }
+            
+        except Exception as e:
+            logger.error(f"  普通基金估算失败: {e}")
+            return None
+
+    def estimate_fund(self, fund_code: str, fund_name: str, holding: float) -> Optional[Dict]:
+        if self.is_link_fund(fund_name):
+            return self.estimate_link_fund(fund_code, fund_name, holding)
+        else:
+            return self.estimate_normal_fund(fund_code, fund_name, holding)
+
+
+# ==========================================
+# 整合层：网格策略分析器（修复回撤符号）
+# ==========================================
+
+class GridStrategyAnalyzer:
+    """
+    网格交易策略分析器
+    整合实时估值与动态回撤（90日高点），生成交易信号
+    回撤使用负数表示下跌（如-11.65%表示下跌11.65%）
+    """
+    
+    GRID_LEVELS = [
+        {'threshold': -5, 'name': '预警', 'position_type': '观望', 'allocation': 0},
+        {'threshold': -8, 'name': '档位1', 'position_type': '左侧建仓启动', 'allocation': 30},
+        {'threshold': -13, 'name': '档位2', 'position_type': '加速摊薄', 'allocation': 40},
+        {'threshold': -18, 'name': '档位3', 'position_type': '重拳出击', 'allocation': 50},
+        {'threshold': -25, 'name': '档位4', 'position_type': '打光战斗仓', 'allocation': 80},
+        {'threshold': -35, 'name': '绝境', 'position_type': '现金兜底', 'allocation': 100},
+    ]
+    
+    BATTLE_CAPITAL_RATIO = 0.35
+    CASH_CAPITAL_RATIO = 0.15
+    CORE_CAPITAL_RATIO = 0.50
+    
+    def __init__(self):
+        self.estimator = SmartFundEstimator()
+    
+    def calculate_grid_signal(self, estimated_drawdown: float) -> Dict:
+        """
+        根据预估回撤计算网格档位和交易指令
+        estimated_drawdown为负数（如-11.65表示下跌11.65%）
+        """
+        current_level = None
+        next_level = None
+        
+        # 遍历档位，找到当前触发的最高档位
+        for i, level in enumerate(self.GRID_LEVELS):
+            if estimated_drawdown <= level['threshold']:  # 负数比较：-11.65 <= -8 为True
+                current_level = level
+                if i < len(self.GRID_LEVELS) - 1:
+                    next_level = self.GRID_LEVELS[i + 1]
+                else:
+                    next_level = None
+        
+        if current_level is None:
+            current_level = {'threshold': 0, 'name': '安全区', 'position_type': '持有不动', 'allocation': 0}
+            next_level = self.GRID_LEVELS[0] if self.GRID_LEVELS else None
+        
+        actual_allocation = 0.0
+        instruction = "持有核心仓，不动"
+        
+        if current_level['name'] == '安全区':
+            instruction = "持有核心仓50%，不动"
+        elif current_level['name'] == '预警':
+            instruction = "雷达标记，只看不买，保持核心仓"
+        elif current_level['name'] in ['档位1', '档位2', '档位3', '档位4']:
+            total_battle_weight = 30 + 40 + 50 + 80
+            level_weight = current_level['allocation']
+            battle_deploy = self.BATTLE_CAPITAL_RATIO * (level_weight / total_battle_weight)
+            actual_allocation = battle_deploy
+            instruction = f"投入战斗仓{battle_deploy*100:.2f}%（档位{current_level['allocation']}%权重），用于左侧建仓"
+        elif current_level['name'] == '绝境':
+            cash_deploy = self.CASH_CAPITAL_RATIO * 0.95
+            actual_allocation = cash_deploy
+            instruction = f"动用现金仓{cash_deploy*100:.2f}%（保留5%应急），核心仓50%保持不动"
+        
+        return {
+            'current_level': str(current_level['name']),
+            'tactical_position': str(current_level['position_type']),
+            'grid_allocation_pct': int(current_level['allocation']),
+            'actual_capital_allocation_pct': float(round(actual_allocation * 100, 2)),
+            'next_threshold': float(next_level['threshold']) if next_level else None,
+            'instruction': str(instruction),
+            'is_triggered': bool(current_level['name'] not in ['安全区', '预警'])
+        }
+    
+    def analyze_fund(self, fund_code: str, fund_name: str, holding: float) -> Optional[Dict]:
+        """
+        完整分析单只基金：估值 + 回撤(90日) + 策略
+        """
+        logger.info(f"\n{'='*60}")
+        logger.info(f"开始分析基金: {fund_code} ({fund_name})")
+        logger.info(f"{'='*60}")
+        
+        # 1. 获取实时估值
+        logger.info("\n[步骤1] 获取实时估值...")
+        estimate_result = self.estimator.estimate_fund(fund_code, fund_name, holding)
+        if not estimate_result:
+            logger.error("  实时估值获取失败")
+            return None
+        
+        today_change = estimate_result['estimate_change']
+        
+        # 2. 获取历史回撤（90日窗口）
+        logger.info("\n[步骤2] 获取90日滚动高点回撤...")
+        drawdown_result = get_fund_drawdown(fund_code, rolling_days=90, target_date=None)
+        if not drawdown_result:
+            logger.error("  历史回撤数据获取失败")
+            return None
+        
+        # 强制转换所有numpy类型为Python原生类型
+        historical_drawdown_pos = float(drawdown_result['drawdown_pct'])  # 正数表示下跌（如10.98）
+        yesterday_nav = float(drawdown_result['current_nav'])
+        rolling_high = float(drawdown_result['rolling_high'])
+        
+        # 关键修复：转换为负数表示下跌（用于网格计算）
+        historical_drawdown_neg = -historical_drawdown_pos  # -10.98
+        
+        # 3. 计算预估回撤（负数表示下跌）
+        estimated_nav = yesterday_nav * (1 + today_change / 100)
+        estimated_drawdown = (estimated_nav - rolling_high) / rolling_high * 100  # 负数（如-11.65）
+        
+        logger.info(f"\n[步骤3] 计算合成指标...")
+        logger.info(f"  昨日净值: {yesterday_nav}")
+        logger.info(f"  90日高点: {rolling_high} ({drawdown_result['high_date']})")
+        logger.info(f"  历史回撤: {historical_drawdown_neg:.2f}%")
+        logger.info(f"  今日估值: {today_change:+.2f}%")
+        logger.info(f"  预估净值: {estimated_nav:.4f}")
+        logger.info(f"  预估回撤: {estimated_drawdown:.2f}%")
+        
+        # 4. 生成网格策略信号（使用负数回撤）
+        logger.info("\n[步骤4] 生成网格策略...")
+        grid_signal = self.calculate_grid_signal(estimated_drawdown)
+        
+        # 5. 组装完整结果（确保所有类型可JSON序列化）
+        result = {
+            'fund_code': str(fund_code),
+            'fund_name': str(fund_name),
+            'holding': float(holding),
+            
+            'real_time_estimate': {
+                'today_change_pct': float(estimate_result['estimate_change']),
+                'estimated_nav': float(round(estimated_nav, 4)),
+                'market': str(estimate_result.get('market', '未知')),
+                'benchmark': str(estimate_result.get('benchmark', '未知')),
+                'update_time': str(estimate_result.get('update_time', datetime.now().strftime('%H:%M:%S')))
+            },
+            
+            'historical_drawdown': {
+                'yesterday_nav': float(yesterday_nav),
+                'rolling_high_90d': float(rolling_high),
+                'high_date': str(drawdown_result['high_date']),
+                'drawdown_to_high_pct': float(historical_drawdown_neg),  # 负数表示下跌
+                'is_at_rolling_high': bool(abs(estimated_drawdown) < 0.01)
+            },
+            
+            'synthetic_forecast': {
+                'estimated_drawdown_pct': float(round(estimated_drawdown, 2)),  # 负数表示下跌
+                'drawdown_change_today': float(round(estimated_drawdown - historical_drawdown_neg, 2)),
+                'distance_to_next_level': float(self._calc_distance_to_next(estimated_drawdown)) if self._calc_distance_to_next(estimated_drawdown) is not None else None
+            },
+            
+            'strategy_signal': grid_signal,
+            
+            'raw_estimate_data': estimate_result
+        }
+        
+        logger.info(f"\n[结果] {fund_code} 策略: {grid_signal['current_level']} | {grid_signal['instruction']}")
+        
+        return result
+    
+    def _calc_distance_to_next(self, estimated_drawdown: float) -> Optional[float]:
+        """计算距离下一档网格的距离（返回正值）"""
+        for level in self.GRID_LEVELS:
+            if estimated_drawdown > level['threshold']:  # 负数比较：-11.65 > -13 为True
+                return float(round(level['threshold'] - estimated_drawdown, 2))  # -8 - (-11.65) = 3.65
+        return None
+
+
+# ==========================================
+# AI 服务层（替代前端直接调用）
+# ==========================================
+
+class AIService:
+    """AI服务封装，处理与DeepSeek API的通信"""
+    
+    @staticmethod
+    def parse_funds_natural_language(text: str) -> List[Dict]:
+        """
+        使用AI解析自然语言输入，提取基金信息
+        返回: [{"code": "...", "name": "...", "holding": ...}, ...]
+        """
+        if not ai_provider.is_configured():
+            raise ValueError("AI服务未配置")
+        
+        # 清洗输入
+        text = sanitize_input(text, max_length=3000)
+        
+        prompt = f"""请从以下文本中提取基金信息，返回标准JSON数组格式。每个对象包含code(基金代码,6位数字)、name(基金名称,可选)、holding(持仓金额,数字)。
+规则：
+1. 基金代码通常是6位数字
+2. 金额支持"元","块","万"等单位，转换为纯数字（如1.5万转换为15000）
+3. 如果无法识别名称，name留空
+4. 只返回JSON数组，不要任何其他文字、解释或markdown格式
+
+文本：{text}
+
+示例输出：[{{"code":"110011","name":"易方达蓝筹","holding":10000}}]"""
+
+        try:
+            content = ai_provider.chat(prompt, temperature=0.1, max_tokens=2000, timeout=30)
+            
+            # 提取JSON数组
+            json_match = re.search(r'\[[\s\S]*?\]', content)
+            if not json_match:
+                raise ValueError("AI返回格式错误")
+            
+            funds = json.loads(json_match[0])
+            
+            # 验证和清洗结果
+            valid_funds = []
+            for fund in funds:
+                code = sanitize_fund_code(fund.get('code', ''))
+                if code:
+                    try:
+                        holding = float(fund.get('holding', 0))
+                        if holding < 0:
+                            holding = 0
+                    except:
+                        holding = 0
+                    
+                    valid_funds.append({
+                        'code': code,
+                        'name': str(fund.get('name', ''))[:50],  # 限制长度
+                        'holding': holding
+                    })
+            
+            return valid_funds
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON解析错误: {e}, 内容: {content}")
+            raise ValueError("AI返回数据解析失败")
+        except Exception as e:
+            logger.error(f"AI解析错误: {e}")
+            raise
+
+    @staticmethod
+    def generate_strategy(grid_data: Dict) -> Dict[str, str]:
+        """
+        基于网格分析数据生成AI策略建议
+        返回: {"execution": "...", "risk_management": "..."}
+        """
+        if not ai_provider.is_configured():
+            raise ValueError("AI服务未配置")
+        
+        triggered = grid_data.get('trading_signals', [])
+        details = grid_data.get('detailed_results', [])
+        
+        # 构建提示词（限制长度防止token超限）
+        triggered_text = "\n".join([
+            f"- {s['fund_name']}: {s['level']}, 部署{s['allocation']}%资金"
+            for s in triggered[:10]  # 最多10个信号
+        ])
+        
+        details_text = "\n".join([
+            f"- {d['fund_name']}: 回撤{d['synthetic_forecast']['estimated_drawdown_pct']}%, 档位{d['strategy_signal']['current_level']}"
+            for d in details[:10]
+        ])
+        
+        prompt = f"""作为量化交易专家，基于以下90日高点网格数据生成策略：
+
+【触发的交易信号】{len(triggered)}个:
+{triggered_text}
+
+【持仓详情】
+{details_text}
+
+请生成：
+1. **当日网格执行方案**：具体如何分配战斗仓(35%)和现金仓(15%)，哪些基金按哪一档执行
+2. **风险控制建议**：基于90日高点的市场状态评估、剩余子弹管理、下次加仓点预判
+
+要求：专业术语、分点清晰、可立即执行。使用中文。
+请用 markdown 格式输出，包含两个章节："### 当日网格执行方案" 和 "### 风险控制建议"。"""
+
+        try:
+            content = ai_provider.chat(prompt, temperature=0.7, max_tokens=2000, timeout=60)
+            
+            # 分割内容
+            parts = re.split(r'#{2,3}\s*风险控制|#{2,3}\s*仓位管理|#{2,3}\s*风险控制建议', content)
+            
+            if len(parts) >= 2:
+                execution = parts[0].strip()
+                risk = parts[1].strip()
+            else:
+                # 尝试按"当日网格执行"和"风险控制"关键词分割
+                if "风险控制" in content:
+                    idx = content.find("风险控制")
+                    execution = content[:idx].strip()
+                    risk = content[idx:].strip()
+                else:
+                    execution = content
+                    risk = "严格执行上述网格档位，保留现金应对极端行情。"
+            
+            # 清理markdown标题
+            execution = re.sub(r'#{2,3}\s*当日网格执行方案\s*\n?', '', execution)
+            
+            return {
+                'execution': execution,
+                'risk_management': risk
+            }
+            
+        except Exception as e:
+            logger.error(f"策略生成错误: {e}")
+            raise
+
+
+# ==========================================
+# Flask API 路由
+# ==========================================
+
+estimator = SmartFundEstimator()
+grid_analyzer = GridStrategyAnalyzer()
+ai_service = AIService()
+
+@app.route('/api/parse_funds', methods=['POST'])
+@limiter.limit("10 per minute")  # 限制AI解析频率（成本较高）
+def parse_funds():
+    """
+    新增：AI智能解析基金信息（替代前端直接调用DeepSeek）
+    请求: {"text": "用户输入的自然语言文本"}
+    响应: {"funds": [{"code": "...", "name": "...", "holding": ...}]}
+    """
+    try:
+        data = request.get_json()
+        if not data or 'text' not in data:
+            return jsonify({'error': '缺少text参数'}), 400
+        
+        text = data['text']
+        if not text or len(text) > 3000:
+            return jsonify({'error': '文本为空或过长'}), 400
+        
+        funds = ai_service.parse_funds_natural_language(text)
+        
+        return jsonify({
+            'success': True,
+            'funds': funds,
+            'count': len(funds)
+        })
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"解析基金错误: {e}")
+        return jsonify({'error': '解析服务暂时不可用'}), 503
+
+
+@app.route('/api/ai_strategy', methods=['POST'])
+@limiter.limit("10 per minute")  # 限制AI策略生成频率
+def ai_strategy():
+    """
+    新增：生成AI策略建议（替代前端直接调用DeepSeek）
+    请求: 与 /api/grid_analysis 相同的输出格式
+    响应: {"execution": "...", "risk_management": "..."}
+    """
+    try:
+        data = request.get_json()
+        if not data or 'detailed_results' not in data:
+            return jsonify({'error': '缺少网格分析数据'}), 400
+        
+        result = ai_service.generate_strategy(data)
+        
+        return jsonify({
+            'success': True,
+            'grid_execution': result['execution'],
+            'position_management': result['risk_management']
+        })
+        
+    except Exception as e:
+        logger.error(f"生成策略错误: {e}")
+        return jsonify({'error': '策略生成失败'}), 503
+
+
+@app.route('/api/estimate', methods=['POST'])
+@limiter.limit("30 per minute")
+def estimate():
+    """原系统二接口：仅估值"""
+    data = request.get_json()
+    funds = data.get('funds', [])
+    
+    # 验证输入
+    is_valid, msg = validate_funds_data(funds)
+    if not is_valid:
+        return jsonify({'error': msg}), 400
+    
+    logger.info(f"\n开始估算 {len(funds)} 只基金 [v5.3 修复版]")
+    
+    results = []
+    for fund in funds:
+        try:
+            result = estimator.estimate_fund(
+                fund['code'],
+                fund.get('name', fund['code']),
+                fund['holding']
+            )
+            if result:
+                results.append(result)
+            time.sleep(0.5)  # 降低请求频率
+        except Exception as e:
+            logger.error(f"处理错误: {e}")
+    
+    if results:
+        total_holding = sum(r['holding'] for r in results)
+        total_profit = sum(r['profit'] for r in results)
+        portfolio_change = total_profit / total_holding * 100 if total_holding > 0 else 0
+        
+        return jsonify({
+            'results': results,
+            'summary': {
+                'total_holding': float(total_holding),
+                'total_profit': float(round(total_profit, 2)),
+                'portfolio_change': float(round(portfolio_change, 2))
+            }
+        })
+    
+    return jsonify({'results': [], 'summary': {}})
+
+
+@app.route('/api/grid_analysis', methods=['POST'])
+@limiter.limit("20 per minute")
+def grid_analysis():
+    """
+    新增接口：网格策略完整分析（基于90日高点，修复回撤符号）
+    """
+    data = request.get_json()
+    funds = data.get('funds', [])
+    
+    # 验证输入
+    is_valid, msg = validate_funds_data(funds)
+    if not is_valid:
+        return jsonify({'error': msg}), 400
+    
+    logger.info(f"\n{'#'*70}")
+    logger.info(f"启动网格策略分析 - 共{len(funds)}只基金（90日高点版）")
+    logger.info(f"{'#'*70}")
+    
+    results = []
+    triggered_signals = []
+    
+    for fund in funds:
+        try:
+            result = grid_analyzer.analyze_fund(
+                fund['code'],
+                fund.get('name', fund['code']),
+                float(fund.get('holding', 0))
+            )
+            
+            if result:
+                results.append(result)
+                
+                if result['strategy_signal']['is_triggered']:
+                    triggered_signals.append({
+                        'fund_code': str(result['fund_code']),
+                        'fund_name': str(result['fund_name']),
+                        'level': str(result['strategy_signal']['current_level']),
+                        'allocation': float(result['strategy_signal']['actual_capital_allocation_pct']),
+                        'instruction': str(result['strategy_signal']['instruction'])
+                    })
+            
+            time.sleep(1)  # 降低请求频率，避免被封
+            
+        except Exception as e:
+            logger.error(f"分析基金 {fund['code']} 时出错: {e}")
+    
+    summary = {
+        'total_funds': int(len(funds)),
+        'analyzed_successfully': int(len(results)),
+        'trading_signals_count': int(len(triggered_signals)),
+        'timestamp': str(datetime.now().isoformat())
+    }
+    
+    return jsonify({
+        'summary': summary,
+        'trading_signals': triggered_signals,
+        'detailed_results': results
+    })
+
+
+@app.route('/api/drawdown', methods=['POST'])
+@limiter.limit("30 per minute")
+def drawdown():
+    """原系统一接口：仅回撤分析（默认90日窗口）"""
+    data = request.get_json()
+    funds = data.get('funds', [])
+    rolling_days = int(data.get('rolling_days', 90))
+    
+    if rolling_days not in [30, 60, 90, 120, 250]:
+        return jsonify({'error': '不支持的回撤窗口期'}), 400
+    
+    results = []
+    for fund in funds:
+        try:
+            code = sanitize_fund_code(fund['code'])
+            if not code:
+                continue
+                
+            result = get_fund_drawdown(
+                code,
+                rolling_days=rolling_days,
+                target_date=fund.get('target_date')
+            )
+            if result:
+                results.append(result)
+        except Exception as e:
+            logger.error(f"获取回撤数据失败 {fund.get('code')}: {e}")
+    
+    return jsonify({
+        'rolling_window': f"{rolling_days}日",
+        'results': results,
+        'count': int(len(results))
+    })
+
+
+@app.route('/api/health', methods=['GET'])
+def health():
+    return jsonify({
+        'status': 'ok', 
+        'version': '6.0 GridTrading-90D-Secure', 
+        'time': str(datetime.now().isoformat()),
+        'modules': ['estimate', 'drawdown', 'grid_analysis', 'ai_parse', 'ai_strategy'],
+        'default_window': '90d',
+        'ai_enabled': ai_provider.is_configured(),
+        'ai_provider': ai_provider.get_info(),
+        'note': 'Fixed drawdown sign logic + Backend AI Proxy'
+    })
+
+
+# 全局错误处理
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': '接口不存在'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f"服务器错误: {error}")
+    return jsonify({'error': '服务器内部错误'}), 500
+
+@app.errorhandler(429)
+def ratelimit_handler(error):
+    return jsonify({'error': '请求过于频繁，请稍后再试'}), 429
+
+
+if __name__ == '__main__':
+    print("="*70)
+    print("基金网格交易自动化系统 v6.0 - 90日高点安全版")
+    print("安全更新：AI调用已移至后端，前端不再接触API Key")
+    print("接口列表：")
+    print("  - POST /api/parse_funds      [新] AI解析自然语言（安全）")
+    print("  - POST /api/grid_analysis    [原] 完整策略分析")
+    print("  - POST /api/estimate         [原] 仅估值")
+    print("  - POST /api/drawdown         [原] 仅回撤")
+    print("  - POST /api/ai_strategy      [新] AI策略生成（安全）")
+    print("  - GET  /api/health           健康检查")
+    print("="*70)
+    
+    # 生产环境请设置 debug=False
+    app.run(debug=False, port=5000, host='0.0.0.0')
