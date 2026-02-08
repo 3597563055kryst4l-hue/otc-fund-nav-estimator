@@ -51,7 +51,7 @@ limiter = Limiter(
 )
 
 # ==========================================
-# 通用AI服务配置 - 支持多提供商
+# 通用AI服务配置 - 支持多提供商（仅用于解析基金）
 # ==========================================
 
 class AIProvider:
@@ -323,14 +323,22 @@ def validate_funds_data(funds: list) -> Tuple[bool, str]:
     for fund in funds:
         if not isinstance(fund, dict):
             return False, "基金数据格式错误"
-        if 'code' not in fund or not sanitize_fund_code(fund['code']):
-            return False, f"无效的基金代码: {fund.get('code', 'unknown')}"
-        try:
-            holding = float(fund.get('holding', 0))
-            if holding < 0 or holding > 100000000:  # 限制合理范围
-                return False, "持仓金额超出合理范围"
-        except:
-            return False, "持仓金额格式错误"
+        # 支持通过代码或名称中的任意一个来识别基金
+        code = sanitize_fund_code(fund.get('code', ''))
+        name = fund.get('name', '').strip()
+        
+        if not code and not name:
+            return False, f"基金代码和名称不能同时为空: {fund}"
+        
+        # 如果有持仓金额，验证其格式
+        holding = fund.get('holding', 0)
+        if holding is not None and holding != '':
+            try:
+                holding_val = float(holding)
+                if holding_val < 0 or holding_val > 100000000:  # 限制合理范围
+                    return False, "持仓金额超出合理范围"
+            except:
+                return False, "持仓金额格式错误"
     return True, ""
 
 # ==========================================
@@ -341,7 +349,7 @@ def get_fund_drawdown(fund_code="016665", rolling_days=90, target_date=None):
     """
     获取基金净值及距离近期高点的回撤幅度
     返回的drawdown_pct为正数表示下跌幅度（如10.98表示下跌10.98%）
-    在分析器中会被转换为负数用于网格计算
+    在分析器中会被转换为负数用于显示
     """
     try:
         df = ak.fund_open_fund_info_em(symbol=fund_code, indicator="单位净值走势")
@@ -405,7 +413,7 @@ def get_fund_drawdown(fund_code="016665", rolling_days=90, target_date=None):
     return result
 
 # ==========================================
-# 系统二：盘中估值引擎（完全保留原代码）
+# 系统二：盘中估值引擎
 # ==========================================
 
 class SmartFundEstimator:
@@ -503,8 +511,7 @@ class SmartFundEstimator:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         
-        logger.info("★ 基金估值系统 v5.3 [修复市场检测版]")
-        logger.info("★ 修复：QDII市场识别 + 字段完整性")
+        logger.info("★ 基金估值系统 v6.0 [精简版 - 仅估值与回撤]")
 
     def is_link_fund(self, fund_name: str) -> bool:
         return bool(re.search(r'联接|link', fund_name, re.IGNORECASE))
@@ -833,84 +840,21 @@ class SmartFundEstimator:
 
 
 # ==========================================
-# 整合层：网格策略分析器（修复回撤符号）
+# 整合层：估值与回撤分析器（精简版）
 # ==========================================
 
-class GridStrategyAnalyzer:
+class FundAnalyzer:
     """
-    网格交易策略分析器
-    整合实时估值与动态回撤（90日高点），生成交易信号
-    回撤使用负数表示下跌（如-11.65%表示下跌11.65%）
+    基金分析器 - 精简版
+    仅提供实时估值和滚动回撤数据，不包含投资建议
     """
-    
-    GRID_LEVELS = [
-        {'threshold': -5, 'name': '预警', 'position_type': '观望', 'allocation': 0},
-        {'threshold': -8, 'name': '档位1', 'position_type': '左侧建仓启动', 'allocation': 30},
-        {'threshold': -13, 'name': '档位2', 'position_type': '加速摊薄', 'allocation': 40},
-        {'threshold': -18, 'name': '档位3', 'position_type': '重拳出击', 'allocation': 50},
-        {'threshold': -25, 'name': '档位4', 'position_type': '打光战斗仓', 'allocation': 80},
-        {'threshold': -35, 'name': '绝境', 'position_type': '现金兜底', 'allocation': 100},
-    ]
-    
-    BATTLE_CAPITAL_RATIO = 0.35
-    CASH_CAPITAL_RATIO = 0.15
-    CORE_CAPITAL_RATIO = 0.50
     
     def __init__(self):
         self.estimator = SmartFundEstimator()
     
-    def calculate_grid_signal(self, estimated_drawdown: float) -> Dict:
-        """
-        根据预估回撤计算网格档位和交易指令
-        estimated_drawdown为负数（如-11.65表示下跌11.65%）
-        """
-        current_level = None
-        next_level = None
-        
-        # 遍历档位，找到当前触发的最高档位
-        for i, level in enumerate(self.GRID_LEVELS):
-            if estimated_drawdown <= level['threshold']:  # 负数比较：-11.65 <= -8 为True
-                current_level = level
-                if i < len(self.GRID_LEVELS) - 1:
-                    next_level = self.GRID_LEVELS[i + 1]
-                else:
-                    next_level = None
-        
-        if current_level is None:
-            current_level = {'threshold': 0, 'name': '安全区', 'position_type': '持有不动', 'allocation': 0}
-            next_level = self.GRID_LEVELS[0] if self.GRID_LEVELS else None
-        
-        actual_allocation = 0.0
-        instruction = "持有核心仓，不动"
-        
-        if current_level['name'] == '安全区':
-            instruction = "持有核心仓50%，不动"
-        elif current_level['name'] == '预警':
-            instruction = "雷达标记，只看不买，保持核心仓"
-        elif current_level['name'] in ['档位1', '档位2', '档位3', '档位4']:
-            total_battle_weight = 30 + 40 + 50 + 80
-            level_weight = current_level['allocation']
-            battle_deploy = self.BATTLE_CAPITAL_RATIO * (level_weight / total_battle_weight)
-            actual_allocation = battle_deploy
-            instruction = f"投入战斗仓{battle_deploy*100:.2f}%（档位{current_level['allocation']}%权重），用于左侧建仓"
-        elif current_level['name'] == '绝境':
-            cash_deploy = self.CASH_CAPITAL_RATIO * 0.95
-            actual_allocation = cash_deploy
-            instruction = f"动用现金仓{cash_deploy*100:.2f}%（保留5%应急），核心仓50%保持不动"
-        
-        return {
-            'current_level': str(current_level['name']),
-            'tactical_position': str(current_level['position_type']),
-            'grid_allocation_pct': int(current_level['allocation']),
-            'actual_capital_allocation_pct': float(round(actual_allocation * 100, 2)),
-            'next_threshold': float(next_level['threshold']) if next_level else None,
-            'instruction': str(instruction),
-            'is_triggered': bool(current_level['name'] not in ['安全区', '预警'])
-        }
-    
     def analyze_fund(self, fund_code: str, fund_name: str, holding: float) -> Optional[Dict]:
         """
-        完整分析单只基金：估值 + 回撤(90日) + 策略
+        分析单只基金：估值 + 回撤(90日)
         """
         logger.info(f"\n{'='*60}")
         logger.info(f"开始分析基金: {fund_code} ({fund_name})")
@@ -937,7 +881,7 @@ class GridStrategyAnalyzer:
         yesterday_nav = float(drawdown_result['current_nav'])
         rolling_high = float(drawdown_result['rolling_high'])
         
-        # 关键修复：转换为负数表示下跌（用于网格计算）
+        # 转换为负数表示下跌（用于显示）
         historical_drawdown_neg = -historical_drawdown_pos  # -10.98
         
         # 3. 计算预估回撤（负数表示下跌）
@@ -952,11 +896,7 @@ class GridStrategyAnalyzer:
         logger.info(f"  预估净值: {estimated_nav:.4f}")
         logger.info(f"  预估回撤: {estimated_drawdown:.2f}%")
         
-        # 4. 生成网格策略信号（使用负数回撤）
-        logger.info("\n[步骤4] 生成网格策略...")
-        grid_signal = self.calculate_grid_signal(estimated_drawdown)
-        
-        # 5. 组装完整结果（确保所有类型可JSON序列化）
+        # 4. 组装完整结果（确保所有类型可JSON序列化）
         result = {
             'fund_code': str(fund_code),
             'fund_name': str(fund_name),
@@ -980,38 +920,29 @@ class GridStrategyAnalyzer:
             
             'synthetic_forecast': {
                 'estimated_drawdown_pct': float(round(estimated_drawdown, 2)),  # 负数表示下跌
-                'drawdown_change_today': float(round(estimated_drawdown - historical_drawdown_neg, 2)),
-                'distance_to_next_level': float(self._calc_distance_to_next(estimated_drawdown)) if self._calc_distance_to_next(estimated_drawdown) is not None else None
+                'drawdown_change_today': float(round(estimated_drawdown - historical_drawdown_neg, 2))
             },
-            
-            'strategy_signal': grid_signal,
             
             'raw_estimate_data': estimate_result
         }
         
-        logger.info(f"\n[结果] {fund_code} 策略: {grid_signal['current_level']} | {grid_signal['instruction']}")
+        logger.info(f"\n[结果] {fund_code} 分析完成")
         
         return result
-    
-    def _calc_distance_to_next(self, estimated_drawdown: float) -> Optional[float]:
-        """计算距离下一档网格的距离（返回正值）"""
-        for level in self.GRID_LEVELS:
-            if estimated_drawdown > level['threshold']:  # 负数比较：-11.65 > -13 为True
-                return float(round(level['threshold'] - estimated_drawdown, 2))  # -8 - (-11.65) = 3.65
-        return None
 
 
 # ==========================================
-# AI 服务层（替代前端直接调用）
+# AI 服务层（仅用于解析基金输入）
 # ==========================================
 
 class AIService:
-    """AI服务封装，处理与DeepSeek API的通信"""
+    """AI服务封装，仅用于解析自然语言输入"""
     
     @staticmethod
     def parse_funds_natural_language(text: str) -> List[Dict]:
         """
         使用AI解析自然语言输入，提取基金信息
+        支持仅输入基金代码或基金名称，也支持不输入金额
         返回: [{"code": "...", "name": "...", "holding": ...}, ...]
         """
         if not ai_provider.is_configured():
@@ -1020,16 +951,21 @@ class AIService:
         # 清洗输入
         text = sanitize_input(text, max_length=3000)
         
-        prompt = f"""请从以下文本中提取基金信息，返回标准JSON数组格式。每个对象包含code(基金代码,6位数字)、name(基金名称,可选)、holding(持仓金额,数字)。
-规则：
-1. 基金代码通常是6位数字
-2. 金额支持"元","块","万"等单位，转换为纯数字（如1.5万转换为15000）
-3. 如果无法识别名称，name留空
-4. 只返回JSON数组，不要任何其他文字、解释或markdown格式
+        prompt = f"""请从以下文本中提取基金信息，返回标准JSON数组格式。每个对象可包含code(基金代码,6位数字)、name(基金名称)、holding(持仓金额,数字)。
+重要规则：
+1. 基金代码通常是6位数字，如果用户只输入名称没有代码，则code字段留空或省略
+2. 如果用户只输入代码没有名称，则name字段留空或省略
+3. 金额支持"元","块","万"等单位，转换为纯数字（如1.5万转换为15000）
+4. 如果用户没有输入金额，holding字段可以为0、null或省略
+5. 只返回JSON数组，不要任何其他文字、解释或markdown格式
 
 文本：{text}
 
-示例输出：[{{"code":"110011","name":"易方达蓝筹","holding":10000}}]"""
+示例输出：
+- 完整信息：[{{"code":"110011","name":"易方达蓝筹","holding":10000}}]
+- 只有代码：[{{"code":"110011","holding":0}}]
+- 只有名称：[{{"name":"易方达蓝筹","holding":0}}]
+- 只有代码和金额：[{{"code":"110011","holding":5000}}]"""
 
         try:
             content = ai_provider.chat(prompt, temperature=0.1, max_tokens=2000, timeout=30)
@@ -1041,23 +977,56 @@ class AIService:
             
             funds = json.loads(json_match[0])
             
-            # 验证和清洗结果
+            # 验证和清洗结果，并补全信息
             valid_funds = []
             for fund in funds:
                 code = sanitize_fund_code(fund.get('code', ''))
-                if code:
-                    try:
-                        holding = float(fund.get('holding', 0))
-                        if holding < 0:
-                            holding = 0
-                    except:
+                name = fund.get('name', '').strip()
+                
+                # 处理持仓金额
+                try:
+                    holding = float(fund.get('holding', 0) or 0)
+                    if holding < 0:
                         holding = 0
+                except:
+                    holding = 0
+                
+                # 情况1: 有代码，可能有名称 - 直接使用
+                if code:
+                    # 如果没有名称，尝试从基金列表查找
+                    if not name:
+                        fund_info = FundSearchService.get_fund_by_code(code)
+                        if fund_info:
+                            name = fund_info['name']
                     
                     valid_funds.append({
                         'code': code,
-                        'name': str(fund.get('name', ''))[:50],  # 限制长度
+                        'name': name[:50] if name else code,
                         'holding': holding
                     })
+                
+                # 情况2: 只有名称没有代码 - 搜索匹配的基金
+                elif name and not code:
+                    search_results = FundSearchService.search_fund(name, limit=5)
+                    if search_results:
+                        # 尝试精确匹配
+                        matched = None
+                        for result in search_results:
+                            if result['name'] == name:
+                                matched = result
+                                break
+                        # 如果没有精确匹配，使用第一个结果
+                        if not matched:
+                            matched = search_results[0]
+                        
+                        valid_funds.append({
+                            'code': matched['code'],
+                            'name': matched['name'],
+                            'holding': holding
+                        })
+                        logger.info(f"通过名称搜索到基金: {name} -> {matched['code']} {matched['name']}")
+                    else:
+                        logger.warning(f"未找到与名称匹配的基金: {name}")
             
             return valid_funds
             
@@ -1068,74 +1037,154 @@ class AIService:
             logger.error(f"AI解析错误: {e}")
             raise
 
-    @staticmethod
-    def generate_strategy(grid_data: Dict) -> Dict[str, str]:
-        """
-        基于网格分析数据生成AI策略建议
-        返回: {"execution": "...", "risk_management": "..."}
-        """
-        if not ai_provider.is_configured():
-            raise ValueError("AI服务未配置")
+
+# ==========================================
+# 基金搜索服务
+# ==========================================
+
+class FundSearchService:
+    """基金搜索服务 - 基于akshare基金列表"""
+    
+    _fund_list_cache = None
+    _cache_time = None
+    _cache_duration = 3600  # 缓存1小时
+    
+    # 列名常量（避免Windows编码问题）
+    COL_CODE = '\u57fa\u91d1\u4ee3\u7801'  # 基金代码
+    COL_NAME = '\u57fa\u91d1\u7b80\u79f0'  # 基金简称
+    COL_PINYIN_ABBR = '\u62fc\u97f3\u7f29\u5199'  # 拼音缩写
+    COL_TYPE = '\u57fa\u91d1\u7c7b\u578b'  # 基金类型
+    COL_PINYIN_FULL = '\u62fc\u97f3\u5168\u79f0'  # 拼音全称
+    
+    @classmethod
+    def get_fund_list(cls) -> pd.DataFrame:
+        """获取基金列表（带缓存）"""
+        now = time.time()
         
-        triggered = grid_data.get('trading_signals', [])
-        details = grid_data.get('detailed_results', [])
+        if cls._fund_list_cache is not None and cls._cache_time is not None:
+            if now - cls._cache_time < cls._cache_duration:
+                return cls._fund_list_cache
         
-        # 构建提示词（限制长度防止token超限）
-        triggered_text = "\n".join([
-            f"- {s['fund_name']}: {s['level']}, 部署{s['allocation']}%资金"
-            for s in triggered[:10]  # 最多10个信号
-        ])
-        
-        details_text = "\n".join([
-            f"- {d['fund_name']}: 回撤{d['synthetic_forecast']['estimated_drawdown_pct']}%, 档位{d['strategy_signal']['current_level']}"
-            for d in details[:10]
-        ])
-        
-        prompt = f"""作为量化交易专家，基于以下90日高点网格数据生成策略：
-
-【触发的交易信号】{len(triggered)}个:
-{triggered_text}
-
-【持仓详情】
-{details_text}
-
-请生成：
-1. **当日网格执行方案**：具体如何分配战斗仓(35%)和现金仓(15%)，哪些基金按哪一档执行
-2. **风险控制建议**：基于90日高点的市场状态评估、剩余子弹管理、下次加仓点预判
-
-要求：专业术语、分点清晰、可立即执行。使用中文。
-请用 markdown 格式输出，包含两个章节："### 当日网格执行方案" 和 "### 风险控制建议"。"""
-
         try:
-            content = ai_provider.chat(prompt, temperature=0.7, max_tokens=2000, timeout=60)
-            
-            # 分割内容
-            parts = re.split(r'#{2,3}\s*风险控制|#{2,3}\s*仓位管理|#{2,3}\s*风险控制建议', content)
-            
-            if len(parts) >= 2:
-                execution = parts[0].strip()
-                risk = parts[1].strip()
-            else:
-                # 尝试按"当日网格执行"和"风险控制"关键词分割
-                if "风险控制" in content:
-                    idx = content.find("风险控制")
-                    execution = content[:idx].strip()
-                    risk = content[idx:].strip()
-                else:
-                    execution = content
-                    risk = "严格执行上述网格档位，保留现金应对极端行情。"
-            
-            # 清理markdown标题
-            execution = re.sub(r'#{2,3}\s*当日网格执行方案\s*\n?', '', execution)
-            
-            return {
-                'execution': execution,
-                'risk_management': risk
-            }
-            
+            df = ak.fund_name_em()
+            cls._fund_list_cache = df
+            cls._cache_time = now
+            logger.info(f"\u57fa\u91d1\u5217\u8868\u7f13\u5b58\u5df2\u66f4\u65b0\uff0c\u5171{len(df)}\u6761\u8bb0\u5f55")
+            return df
         except Exception as e:
-            logger.error(f"策略生成错误: {e}")
+            logger.error(f"\u83b7\u53d6\u57fa\u91d1\u5217\u8868\u5931\u8d25: {e}")
+            if cls._fund_list_cache is not None:
+                return cls._fund_list_cache
             raise
+    
+    @classmethod
+    def search_fund(cls, keyword: str, limit: int = 10) -> List[Dict]:
+        """
+        搜索基金（支持代码、名称、拼音模糊匹配）
+        """
+        if not keyword or len(keyword) < 2:
+            return []
+        
+        keyword = str(keyword).strip()
+        df = cls.get_fund_list()
+        
+        # 多字段模糊搜索
+        keyword_upper = keyword.upper()
+        
+        try:
+            mask = (
+                df[cls.COL_CODE].astype(str).str.contains(keyword, na=False, case=False, regex=False) |
+                df[cls.COL_NAME].str.contains(keyword, na=False, case=False, regex=False) |
+                df[cls.COL_PINYIN_ABBR].str.contains(keyword_upper, na=False, regex=False) |
+                df[cls.COL_PINYIN_FULL].str.contains(keyword_upper, na=False, regex=False)
+            )
+            
+            results = df[mask].head(limit)
+            
+            return [
+                {
+                    'code': str(row[cls.COL_CODE]),
+                    'name': str(row[cls.COL_NAME]),
+                    'pinyin': str(row[cls.COL_PINYIN_ABBR]),
+                    'type': str(row[cls.COL_TYPE])
+                }
+                for _, row in results.iterrows()
+            ]
+        except Exception as e:
+            logger.error(f"\u641c\u7d22\u57fa\u91d1\u65f6\u51fa\u9519: {e}")
+            # 备选方案：使用 iloc 按列位置搜索
+            return cls._search_fund_fallback(df, keyword, limit)
+    
+    @classmethod
+    def _search_fund_fallback(cls, df: pd.DataFrame, keyword: str, limit: int) -> List[Dict]:
+        """备选搜索方案（使用列索引）"""
+        keyword_upper = keyword.upper()
+        results = []
+        
+        for idx, row in df.iterrows():
+            if len(results) >= limit:
+                break
+            
+            # 按列位置获取数据（避免编码问题）
+            code = str(row.iloc[0])  # 第0列：基金代码
+            name = str(row.iloc[2])  # 第2列：基金简称
+            pinyin_abbr = str(row.iloc[1])  # 第1列：拼音缩写
+            fund_type = str(row.iloc[3])  # 第3列：基金类型
+            
+            # 匹配检查
+            if (keyword in code or 
+                keyword.upper() in pinyin_abbr or
+                keyword in name):
+                results.append({
+                    'code': code,
+                    'name': name,
+                    'pinyin': pinyin_abbr,
+                    'type': fund_type
+                })
+        
+        return results
+    
+    @classmethod
+    def get_fund_by_code(cls, fund_code: str) -> Optional[Dict]:
+        """通过基金代码精确查询"""
+        df = cls.get_fund_list()
+        
+        try:
+            result = df[df[cls.COL_CODE].astype(str) == str(fund_code)]
+            
+            if result.empty:
+                return None
+            
+            row = result.iloc[0]
+            return {
+                'code': str(row[cls.COL_CODE]),
+                'name': str(row[cls.COL_NAME]),
+                'pinyin': str(row[cls.COL_PINYIN_ABBR]),
+                'type': str(row[cls.COL_TYPE])
+            }
+        except Exception as e:
+            logger.error(f"\u83b7\u53d6\u57fa\u91d1\u4fe1\u606f\u5931\u8d25: {e}")
+            # 备选方案
+            for idx, row in df.iterrows():
+                if str(row.iloc[0]) == str(fund_code):
+                    return {
+                        'code': str(row.iloc[0]),
+                        'name': str(row.iloc[2]),
+                        'pinyin': str(row.iloc[1]),
+                        'type': str(row.iloc[3])
+                    }
+            return None
+        
+        if result.empty:
+            return None
+        
+        row = result.iloc[0]
+        return {
+            'code': str(row['基金代码']),
+            'name': str(row['基金简称']),
+            'pinyin': str(row['拼音缩写']),
+            'type': str(row['基金类型'])
+        }
 
 
 # ==========================================
@@ -1143,14 +1192,73 @@ class AIService:
 # ==========================================
 
 estimator = SmartFundEstimator()
-grid_analyzer = GridStrategyAnalyzer()
+fund_analyzer = FundAnalyzer()
 ai_service = AIService()
+
+@app.route('/api/search_fund', methods=['GET'])
+@limiter.limit("60 per minute")
+def search_fund():
+    """
+    基金搜索接口（支持代码、名称、拼音模糊匹配）
+    请求: GET /api/search_fund?keyword=白酒&limit=10
+    响应: {"results": [{"code": "...", "name": "...", "pinyin": "...", "type": "..."}]}
+    """
+    keyword = request.args.get('keyword', '').strip()
+    limit = request.args.get('limit', 10, type=int)
+    
+    if not keyword:
+        return jsonify({'error': '缺少keyword参数'}), 400
+    
+    if len(keyword) < 2:
+        return jsonify({'error': '关键词至少2个字符'}), 400
+    
+    if limit < 1 or limit > 20:
+        limit = 10
+    
+    try:
+        results = FundSearchService.search_fund(keyword, limit)
+        return jsonify({
+            'success': True,
+            'keyword': keyword,
+            'results': results,
+            'count': len(results)
+        })
+    except Exception as e:
+        logger.error(f"搜索基金错误: {e}")
+        return jsonify({'error': '搜索服务暂时不可用'}), 503
+
+
+@app.route('/api/fund_info/<fund_code>', methods=['GET'])
+@limiter.limit("60 per minute")
+def fund_info(fund_code):
+    """
+    获取基金基本信息
+    请求: GET /api/fund_info/110011
+    响应: {"code": "...", "name": "...", "pinyin": "...", "type": "..."}
+    """
+    code = sanitize_fund_code(fund_code)
+    if not code:
+        return jsonify({'error': '无效的基金代码'}), 400
+    
+    try:
+        result = FundSearchService.get_fund_by_code(code)
+        if result:
+            return jsonify({
+                'success': True,
+                'fund': result
+            })
+        else:
+            return jsonify({'error': '基金未找到'}), 404
+    except Exception as e:
+        logger.error(f"获取基金信息错误: {e}")
+        return jsonify({'error': '服务暂时不可用'}), 503
+
 
 @app.route('/api/parse_funds', methods=['POST'])
 @limiter.limit("10 per minute")  # 限制AI解析频率（成本较高）
 def parse_funds():
     """
-    新增：AI智能解析基金信息（替代前端直接调用DeepSeek）
+    AI智能解析基金信息
     请求: {"text": "用户输入的自然语言文本"}
     响应: {"funds": [{"code": "...", "name": "...", "holding": ...}]}
     """
@@ -1178,36 +1286,10 @@ def parse_funds():
         return jsonify({'error': '解析服务暂时不可用'}), 503
 
 
-@app.route('/api/ai_strategy', methods=['POST'])
-@limiter.limit("10 per minute")  # 限制AI策略生成频率
-def ai_strategy():
-    """
-    新增：生成AI策略建议（替代前端直接调用DeepSeek）
-    请求: 与 /api/grid_analysis 相同的输出格式
-    响应: {"execution": "...", "risk_management": "..."}
-    """
-    try:
-        data = request.get_json()
-        if not data or 'detailed_results' not in data:
-            return jsonify({'error': '缺少网格分析数据'}), 400
-        
-        result = ai_service.generate_strategy(data)
-        
-        return jsonify({
-            'success': True,
-            'grid_execution': result['execution'],
-            'position_management': result['risk_management']
-        })
-        
-    except Exception as e:
-        logger.error(f"生成策略错误: {e}")
-        return jsonify({'error': '策略生成失败'}), 503
-
-
 @app.route('/api/estimate', methods=['POST'])
 @limiter.limit("30 per minute")
 def estimate():
-    """原系统二接口：仅估值"""
+    """仅估值接口"""
     data = request.get_json()
     funds = data.get('funds', [])
     
@@ -1216,7 +1298,7 @@ def estimate():
     if not is_valid:
         return jsonify({'error': msg}), 400
     
-    logger.info(f"\n开始估算 {len(funds)} 只基金 [v5.3 修复版]")
+    logger.info(f"\n开始估算 {len(funds)} 只基金 [v6.0 精简版]")
     
     results = []
     for fund in funds:
@@ -1249,11 +1331,12 @@ def estimate():
     return jsonify({'results': [], 'summary': {}})
 
 
-@app.route('/api/grid_analysis', methods=['POST'])
+@app.route('/api/fund_analysis', methods=['POST'])
 @limiter.limit("20 per minute")
-def grid_analysis():
+def fund_analysis():
     """
-    新增接口：网格策略完整分析（基于90日高点，修复回撤符号）
+    基金分析接口：估值 + 回撤（90日高点）
+    不包含投资建议和网格策略
     """
     data = request.get_json()
     funds = data.get('funds', [])
@@ -1264,15 +1347,14 @@ def grid_analysis():
         return jsonify({'error': msg}), 400
     
     logger.info(f"\n{'#'*70}")
-    logger.info(f"启动网格策略分析 - 共{len(funds)}只基金（90日高点版）")
+    logger.info(f"启动基金分析 - 共{len(funds)}只基金（精简版）")
     logger.info(f"{'#'*70}")
     
     results = []
-    triggered_signals = []
     
     for fund in funds:
         try:
-            result = grid_analyzer.analyze_fund(
+            result = fund_analyzer.analyze_fund(
                 fund['code'],
                 fund.get('name', fund['code']),
                 float(fund.get('holding', 0))
@@ -1280,15 +1362,6 @@ def grid_analysis():
             
             if result:
                 results.append(result)
-                
-                if result['strategy_signal']['is_triggered']:
-                    triggered_signals.append({
-                        'fund_code': str(result['fund_code']),
-                        'fund_name': str(result['fund_name']),
-                        'level': str(result['strategy_signal']['current_level']),
-                        'allocation': float(result['strategy_signal']['actual_capital_allocation_pct']),
-                        'instruction': str(result['strategy_signal']['instruction'])
-                    })
             
             time.sleep(1)  # 降低请求频率，避免被封
             
@@ -1298,13 +1371,11 @@ def grid_analysis():
     summary = {
         'total_funds': int(len(funds)),
         'analyzed_successfully': int(len(results)),
-        'trading_signals_count': int(len(triggered_signals)),
         'timestamp': str(datetime.now().isoformat())
     }
     
     return jsonify({
         'summary': summary,
-        'trading_signals': triggered_signals,
         'detailed_results': results
     })
 
@@ -1312,7 +1383,7 @@ def grid_analysis():
 @app.route('/api/drawdown', methods=['POST'])
 @limiter.limit("30 per minute")
 def drawdown():
-    """原系统一接口：仅回撤分析（默认90日窗口）"""
+    """仅回撤分析接口（默认90日窗口）"""
     data = request.get_json()
     funds = data.get('funds', [])
     rolling_days = int(data.get('rolling_days', 90))
@@ -1333,6 +1404,8 @@ def drawdown():
                 target_date=fund.get('target_date')
             )
             if result:
+                # 转换回撤为负数表示下跌
+                result['drawdown_pct'] = -float(result['drawdown_pct'])
                 results.append(result)
         except Exception as e:
             logger.error(f"获取回撤数据失败 {fund.get('code')}: {e}")
@@ -1348,13 +1421,13 @@ def drawdown():
 def health():
     return jsonify({
         'status': 'ok', 
-        'version': '6.0 GridTrading-90D-Secure', 
+        'version': '6.2 Manual-Input-Edition', 
         'time': str(datetime.now().isoformat()),
-        'modules': ['estimate', 'drawdown', 'grid_analysis', 'ai_parse', 'ai_strategy'],
+        'modules': ['estimate', 'drawdown', 'fund_analysis', 'ai_parse', 'fund_search'],
         'default_window': '90d',
         'ai_enabled': ai_provider.is_configured(),
         'ai_provider': ai_provider.get_info(),
-        'note': 'Fixed drawdown sign logic + Backend AI Proxy'
+        'note': '支持手动输入、基金搜索与本地缓存'
     })
 
 
@@ -1375,14 +1448,15 @@ def ratelimit_handler(error):
 
 if __name__ == '__main__':
     print("="*70)
-    print("基金网格交易自动化系统 v6.0 - 90日高点安全版")
-    print("安全更新：AI调用已移至后端，前端不再接触API Key")
+    print("基金估值与回撤系统 v6.2 - 手动输入版")
+    print("功能：估值显示 + 滚动回撤 + 基金搜索 + 本地缓存")
     print("接口列表：")
-    print("  - POST /api/parse_funds      [新] AI解析自然语言（安全）")
-    print("  - POST /api/grid_analysis    [原] 完整策略分析")
-    print("  - POST /api/estimate         [原] 仅估值")
-    print("  - POST /api/drawdown         [原] 仅回撤")
-    print("  - POST /api/ai_strategy      [新] AI策略生成（安全）")
+    print("  - GET  /api/search_fund      基金搜索（支持代码/名称/拼音）")
+    print("  - GET  /api/fund_info/<code> 获取基金基本信息")
+    print("  - POST /api/parse_funds      AI解析自然语言")
+    print("  - POST /api/fund_analysis    基金分析（估值+回撤）")
+    print("  - POST /api/estimate         仅估值")
+    print("  - POST /api/drawdown         仅回撤")
     print("  - GET  /api/health           健康检查")
     print("="*70)
     

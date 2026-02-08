@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FundVision Grid - 智能网格交易系统（90日版）</title>
-    <script src="https://cdn.tailwindcss.com "></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js "></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com ">
-    <link rel="preconnect" href="https://fonts.gstatic.com " crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400 ;600;700&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+    <title>FundVision - 基金估值与回撤</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
         :root {
@@ -33,7 +33,6 @@
             font-weight: 600;
         }
 
-        /* 完整版流动等高线背景 */
         #canvas {
             display: block;
             position: fixed;
@@ -68,7 +67,7 @@
             pointer-events: none;
             opacity: 0.04;
             z-index: 2;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg '%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
         }
 
         .font-elegant {
@@ -151,6 +150,29 @@
             background: rgba(210, 255, 0, 0.35);
             box-shadow: 0 0 30px rgba(210, 255, 0, 0.4);
         }
+
+        .cyber-btn.secondary {
+            background: rgba(10, 12, 8, 0.5);
+            border-color: rgba(210, 255, 0, 0.3);
+            color: var(--text-dim);
+        }
+
+        .cyber-btn.secondary:hover {
+            background: rgba(210, 255, 0, 0.1);
+            border-color: rgba(210, 255, 0, 0.5);
+            color: var(--primary);
+        }
+
+        .cyber-btn.danger {
+            background: rgba(255, 82, 82, 0.1);
+            border-color: rgba(255, 82, 82, 0.5);
+            color: #ff5252;
+        }
+
+        .cyber-btn.danger:hover {
+            background: rgba(255, 82, 82, 0.25);
+            box-shadow: 0 0 30px rgba(255, 82, 82, 0.3);
+        }
         
         .fund-card {
             background: rgba(26, 28, 24, 0.95);
@@ -180,11 +202,6 @@
         }
         
         .fund-card:hover::before { transform: scaleY(1); }
-
-        .fund-card.triggered {
-            border-color: rgba(210, 255, 0, 0.6);
-            background: rgba(210, 255, 0, 0.05);
-        }
         
         .loading-overlay {
             position: fixed;
@@ -307,77 +324,6 @@
         
         .animate-number { animation: countUp 0.6s ease-out forwards; }
         
-        .grid-level-bar {
-            height: 8px;
-            background: rgba(210, 255, 0, 0.1);
-            border-radius: 4px;
-            overflow: hidden;
-            position: relative;
-            margin: 8px 0;
-        }
-        
-        .grid-level-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary), rgba(210, 255, 0, 0.6));
-            transition: width 1s ease;
-            position: relative;
-        }
-        
-        .grid-level-fill::after {
-            content: '';
-            position: absolute;
-            right: 0;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: white;
-            box-shadow: 0 0 10px white;
-        }
-
-        .level-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            margin-left: 8px;
-            border: 1px solid;
-        }
-        
-        .level-safe { color: #a0a598; border-color: rgba(160, 165, 152, 0.3); }
-        .level-watch { color: #ffd700; border-color: rgba(255, 215, 0, 0.3); }
-        .level-triggered { color: var(--primary); border-color: var(--primary); background: rgba(210, 255, 0, 0.1); }
-        
-        .scan-line {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 2px;
-            background: var(--primary);
-            box-shadow: 0 0 10px var(--primary);
-            animation: scan 4s linear infinite;
-            opacity: 0.5;
-        }
-        
-        @keyframes scan { 0% { top: 0%; } 100% { top: 100%; } }
-
-        .strategy-content { line-height: 1.8; font-size: 1.05rem; }
-        .strategy-content h3 {
-            color: var(--primary);
-            font-family: 'Cormorant Garamond', 'Noto Serif SC', serif;
-            font-size: 1.3rem;
-            margin-top: 1rem;
-            margin-bottom: 0.5rem;
-            font-weight: 700;
-            border-bottom: 1px solid rgba(210, 255, 0, 0.2);
-            padding-bottom: 0.3rem;
-        }
-        .strategy-content ul { margin-left: 1.5rem; margin-bottom: 1rem; }
-        .strategy-content li { margin-bottom: 0.5rem; position: relative; }
-        .strategy-content li::marker { color: var(--primary); }
-        .strategy-content strong { color: #fff; font-weight: 700; }
-
         .metric-box {
             background: rgba(10, 12, 8, 0.6);
             border: 1px solid rgba(210, 255, 0, 0.2);
@@ -398,6 +344,167 @@
             font-family: 'JetBrains Mono', monospace;
             font-size: 1.25rem;
             font-weight: 700;
+        }
+
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--primary);
+            box-shadow: 0 0 10px var(--primary);
+            animation: scan 4s linear infinite;
+            opacity: 0.5;
+        }
+        
+        @keyframes scan { 0% { top: 0%; } 100% { top: 100%; } }
+
+        /* 标签页样式 */
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            padding: 12px 24px;
+            font-family: 'Cormorant Garamond', 'Noto Serif SC', serif;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn:hover {
+            color: var(--primary);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 20%;
+            right: 20%;
+            height: 2px;
+            background: var(--primary);
+            box-shadow: 0 0 10px var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 搜索建议下拉框 */
+        .search-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: rgba(22, 24, 20, 0.98);
+            border: 1px solid rgba(210, 255, 0, 0.3);
+            border-radius: 8px;
+            margin-top: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+
+        .search-dropdown.active {
+            display: block;
+        }
+
+        .search-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(210, 255, 0, 0.1);
+            transition: all 0.2s ease;
+        }
+
+        .search-item:hover {
+            background: rgba(210, 255, 0, 0.1);
+        }
+
+        .search-item.selected {
+            background: rgba(210, 255, 0, 0.15);
+        }
+
+        .search-item-code {
+            color: var(--primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .search-item-name {
+            color: var(--text);
+            font-size: 0.95rem;
+            margin-top: 2px;
+        }
+
+        .search-item-type {
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            margin-top: 2px;
+        }
+
+        /* 搜索加载动画 */
+        .search-loading {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .search-loading.hidden {
+            display: none;
+        }
+
+        .search-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(210, 255, 0, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: search-spin 0.8s linear infinite;
+        }
+
+        @keyframes search-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 已添加基金列表 */
+        .fund-list-item {
+            background: rgba(26, 28, 24, 0.95);
+            border: 1px solid rgba(210, 255, 0, 0.15);
+            border-radius: 8px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .fund-list-item:hover {
+            border-color: rgba(210, 255, 0, 0.4);
+            transform: translateX(4px);
+        }
+
+        .fund-list-empty {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-dim);
+            font-style: italic;
         }
     </style>
 </head>
@@ -423,7 +530,6 @@
         </div>
     </div>
 
-    <!-- 完整版流动等高线背景 -->
     <canvas id="canvas"></canvas>
     <div class="vignette"></div>
     <div class="noise"></div>
@@ -436,10 +542,10 @@
             </h1>
             <div class="flex items-center justify-center gap-4 mb-2">
                 <div class="h-px w-20 bg-gradient-to-r from-transparent to-[#d2ff00] opacity-60"></div>
-                <p class="text-[#d2ff00]/80 text-sm tracking-[0.5em] uppercase mono font-bold">GRID TRADING SYSTEM [90D]</p>
+                <p class="text-[#d2ff00]/80 text-sm tracking-[0.5em] uppercase mono font-bold">VALUATION & DRAWDOWN</p>
                 <div class="h-px w-20 bg-gradient-to-l from-transparent to-[#d2ff00] opacity-60"></div>
             </div>
-            <p class="text-[#a0a598] text-base font-elegant font-black tracking-widest">智能网格交易系统 · 90日高点版</p>
+            <p class="text-[#a0a598] text-base font-elegant font-black tracking-widest">基金估值与回撤分析</p>
         </header>
 
         <!-- Input Section -->
@@ -450,46 +556,144 @@
                     <span>数据输入</span>
                 </h2>
                 <div class="flex gap-3 text-xs mono font-bold">
-                    <span class="px-4 py-2 rounded-full border border-[#d2ff00]/40 text-[#d2ff00] bg-[#d2ff00]/10">GRID ANALYSIS</span>
+                    <span class="px-4 py-2 rounded-full border border-[#d2ff00]/40 text-[#d2ff00] bg-[#d2ff00]/10">VALUATION</span>
                     <span class="px-4 py-2 rounded-full border border-[#d2ff00]/40 text-[#d2ff00] bg-[#d2ff00]/10">90D HIGH</span>
                 </div>
             </div>
-            
-            <div class="relative group">
-                <textarea 
-                    id="inputArea" 
-                    class="cyber-input w-full h-56 p-6 rounded-xl text-base resize-none mono leading-relaxed"
-                    placeholder="在此粘贴基金持仓数据，支持任意自然语言格式...&#10;&#10;例如：&#10;• 易方达蓝筹精选混合 110011 10000元&#10;• 我买了20000块的白酒基金，代码是012414&#10;• 012414,15000"
-                ></textarea>
-                <div class="scan-line"></div>
-                <div class="absolute bottom-4 right-4 text-xs text-[#4a4d42] mono font-bold pointer-events-none">90-DAY HIGH ANCHOR</div>
+
+            <!-- AI智能解析区域 -->
+            <div class="mb-8">
+                <button onclick="toggleAISection()" class="flex items-center gap-2 text-[#d2ff00] hover:text-[#e0ff66] transition-colors mb-4 group">
+                    <svg id="aiToggleIcon" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                    <span class="font-elegant font-bold text-lg flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        AI智能解析
+                    </span>
+                    <span class="text-xs text-[#a0a598] font-normal ml-2">粘贴持仓数据，一键批量添加</span>
+                </button>
+                
+                <div id="aiSection" class="hidden">
+                    <div class="relative group">
+                        <textarea 
+                            id="inputArea" 
+                            class="cyber-input w-full h-40 p-6 rounded-xl text-base resize-none mono leading-relaxed"
+                            placeholder="在此粘贴基金持仓数据，支持任意自然语言格式...&#10;&#10;例如：&#10;• 易方达蓝筹精选混合 110011 10000元&#10;• 我买了20000块的白酒基金，代码是012414&#10;• 012414,15000"
+                        ></textarea>
+                        <div class="scan-line"></div>
+                    </div>
+
+                    <div class="mt-4 flex gap-3">
+                        <button onclick="parseWithAI()" id="parseBtn" class="cyber-btn px-6 py-3 rounded-lg flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            <span>智能解析并添加</span>
+                        </button>
+                        <button onclick="clearAIInput()" class="cyber-btn secondary px-6 py-3 rounded-lg flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            <span>清空</span>
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            <div class="mt-8 flex flex-col md:flex-row gap-4">
-                <button onclick="parseWithAI()" id="parseBtn" class="cyber-btn px-8 py-5 rounded-lg flex-1 flex items-center justify-center gap-3">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                    <span>智能解析</span>
-                </button>
-                <button onclick="calculateGridAnalysis()" id="calcBtn" class="cyber-btn px-8 py-5 rounded-lg flex-1 flex items-center justify-center gap-3 opacity-40" disabled>
+            <!-- 分隔线 -->
+            <div class="relative my-8">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-[#d2ff00]/20"></div>
+                </div>
+                <div class="relative flex justify-center">
+                    <span class="px-4 bg-[#1a1c18] text-[#a0a598] text-sm">或通过以下方式添加</span>
+                </div>
+            </div>
+
+            <!-- 手动添加区域 -->
+            <div class="mb-6">
+                <h3 class="text-lg font-elegant font-black text-[#d2ff00] mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    搜索添加
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
+                    <!-- 基金搜索 -->
+                    <div class="md:col-span-5 relative">
+                        <label class="block text-xs text-[#a0a598] mb-2 uppercase tracking-wider">基金代码 / 名称</label>
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                id="fundSearchInput" 
+                                class="cyber-input w-full px-4 py-3 rounded-lg pr-10"
+                                placeholder="输入基金代码或名称搜索..."
+                                autocomplete="off"
+                            >
+                            <!-- 搜索加载动画 -->
+                            <div id="searchLoading" class="search-loading hidden">
+                                <div class="search-spinner"></div>
+                            </div>
+                        </div>
+                        <div id="searchDropdown" class="search-dropdown">
+                            <!-- 搜索结果将在这里显示 -->
+                        </div>
+                    </div>
+                    
+                    <!-- 持仓金额 -->
+                    <div class="md:col-span-4">
+                        <label class="block text-xs text-[#a0a598] mb-2 uppercase tracking-wider">持仓金额</label>
+                        <input 
+                            type="number" 
+                            id="fundHoldingInput" 
+                            class="cyber-input w-full px-4 py-3 rounded-lg"
+                            placeholder="输入金额（元）"
+                            min="0"
+                            step="100"
+                        >
+                    </div>
+                    
+                    <!-- 添加按钮 -->
+                    <div class="md:col-span-3 flex items-end">
+                        <button onclick="addFund()" id="addFundBtn" class="cyber-btn w-full py-3 rounded-lg flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                            <span>添加</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 已添加基金列表 -->
+            <div class="mt-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-elegant font-black text-[#d2ff00]">
+                        已添加基金 (<span id="fundCount">0</span>)
+                    </h3>
+                    <div class="flex gap-2">
+                        <button onclick="clearAllFunds()" class="cyber-btn danger px-4 py-2 rounded text-sm">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            <span class="ml-1">清空全部</span>
+                        </button>
+                        <button onclick="loadCachedFunds()" class="cyber-btn secondary px-4 py-2 rounded text-sm">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            <span class="ml-1">加载缓存</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="manualFundList" class="max-h-64 overflow-y-auto">
+                    <div class="fund-list-empty">暂无基金，请通过以上方式添加</div>
+                </div>
+            </div>
+
+            <!-- 执行分析按钮 -->
+            <div class="mt-8 pt-6 border-t border-[#d2ff00]/10">
+                <button onclick="calculateAnalysis()" id="calcBtn" class="cyber-btn px-8 py-5 rounded-lg w-full flex items-center justify-center gap-3 opacity-40" disabled>
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"></path></svg>
-                    <span>执行网格分析</span>
+                    <span>执行分析</span>
                 </button>
             </div>
-        </div>
-
-        <!-- Preview Section -->
-        <div id="previewSection" class="hidden mb-12">
-            <h3 class="text-2xl font-elegant font-black text-[#d2ff00]/90 mb-6 flex items-center gap-3 italic">
-                <span class="w-3 h-3 bg-[#d2ff00] rounded-full pulse-subtle"></span>
-                解析结果预览
-            </h3>
-            <div id="previewList" class="grid gap-3"></div>
         </div>
 
         <!-- Results Section -->
         <div id="resultSection" class="hidden space-y-10">
             <!-- Summary Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="glass-panel rounded-2xl p-6 glow-box relative overflow-hidden group">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-[#d2ff00]/10 rounded-full blur-3xl"></div>
                     <p class="text-[#a0a598] text-xs mono uppercase tracking-widest mb-2 font-bold">Total Assets</p>
@@ -506,68 +710,15 @@
                     <p class="text-3xl font-elegant font-black mono tracking-tight down" id="avgDrawdown">0.00%</p>
                     <p class="text-xs text-[#5a5d52] mt-1">vs 90D High</p>
                 </div>
-
-                <div class="glass-panel rounded-2xl p-6 glow-box relative overflow-hidden border-[#d2ff00]/30">
-                    <p class="text-[#d2ff00] text-xs mono uppercase tracking-widest mb-2 font-bold">Active Signals</p>
-                    <p class="text-3xl font-elegant font-black text-[#d2ff00] tracking-tight" id="activeSignals">0</p>
-                    <p class="text-xs text-[#d2ff00]/70 mt-1">Grid Levels Triggered</p>
-                </div>
-            </div>
-
-            <!-- Trading Signals Alert -->
-            <div id="signalsAlert" class="hidden glass-panel rounded-2xl p-6 border-[#d2ff00]/40 bg-[#d2ff00]/5">
-                <h3 class="text-xl font-elegant font-black text-[#d2ff00] mb-4 flex items-center gap-2">
-                    <span class="text-2xl">⚡</span>
-                    交易信号 alert
-                </h3>
-                <div id="signalsList" class="space-y-2"></div>
             </div>
 
             <!-- Detail List -->
             <div>
                 <h3 class="text-2xl font-elegant font-black text-[#d2ff00]/90 mb-6 flex items-center gap-3 italic">
                     <span class="text-3xl italic opacity-80">02</span>
-                    网格策略明细（90日高点锚定）
+                    估值与回撤明细（90日高点锚定）
                 </h3>
                 <div id="fundDetails" class="space-y-4"></div>
-            </div>
-
-            <!-- AI Strategy Section -->
-            <div id="strategySection" class="hidden">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-2xl font-elegant font-black text-[#d2ff00]/90 flex items-center gap-3 italic">
-                        <span class="text-3xl italic opacity-80">03</span>
-                        AI 策略增强
-                    </h3>
-                    <button onclick="generateAIStrategy()" id="strategyBtn" class="cyber-btn px-6 py-3 rounded-lg text-sm flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
-                        <span>生成深度策略</span>
-                    </button>
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="glass-panel rounded-2xl p-6 relative overflow-hidden border-[#d2ff00]/20">
-                        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#d2ff00] to-transparent opacity-50"></div>
-                        <h4 class="text-xl font-elegant font-black text-[#d2ff00] mb-4 flex items-center gap-2">
-                            <span class="text-2xl">📊</span>
-                            当日网格执行
-                        </h4>
-                        <div id="gridExecutionStrategy" class="strategy-content text-[#c0c5b0] min-h-[200px] flex items-center justify-center italic text-[#5a5d52]">
-                            点击上方按钮生成具体网格交易执行方案...
-                        </div>
-                    </div>
-
-                    <div class="glass-panel rounded-2xl p-6 relative overflow-hidden border-[#d2ff00]/20">
-                        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#d2ff00] to-transparent opacity-50"></div>
-                        <h4 class="text-xl font-elegant font-black text-[#d2ff00] mb-4 flex items-center gap-2">
-                            <span class="text-2xl">🎯</span>
-                            仓位管理建议
-                        </h4>
-                        <div id="positionManagementStrategy" class="strategy-content text-[#c0c5b0] min-h-[200px] flex items-center justify-center italic text-[#5a5d52]">
-                            点击上方生成仓位配置与风险管控建议...
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -576,8 +727,16 @@
         // API配置 - 后端地址
         const API_BASE_URL = 'http://localhost:5000';
         let parsedFunds = [];
-        let currentGridData = null;
+        let currentData = null;
         let loadingInterval = null;
+        
+        // 手动输入相关变量
+        let selectedFund = null;
+        let searchTimeout = null;
+        let manualFunds = [];
+        
+        // localStorage key
+        const CACHE_KEY = 'fundvision_cached_funds';
 
         // 加载动画控制
         function showLoading(statusText, subText) {
@@ -608,7 +767,7 @@
             });
         }
 
-        // ===== 超慢速流动等高线背景动画（完整版） =====
+        // ===== 超慢速流动等高线背景动画 =====
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         let width, height, dpr;
@@ -628,7 +787,6 @@
         window.addEventListener('resize', init);
         init();
 
-        // Simplex Noise 实现
         const perm = new Uint8Array(512);
         const p = new Uint8Array(256);
         for (let i = 0; i < 256; i++) p[i] = i;
@@ -688,12 +846,10 @@
             let value = 0;
             let amplitude = 1;
             let frequency = 1;
-            // 域变形 - 速度降低50%
             const warpX = noise2D(x * 0.001 + t * 0.00002, y * 0.001 + t * 0.000015) * 80;
             const warpY = noise2D(x * 0.001 - t * 0.000015, y * 0.001 + t * 0.00002) * 80;
             x += warpX;
             y += warpY;
-            // 多倍频程 - 速度降低50%
             for (let i = 0; i < 4; i++) {
                 value += amplitude * noise2D(x * frequency * 0.0015 + t * 0.00004, y * frequency * 0.0015 + t * 0.00003);
                 amplitude *= 0.5;
@@ -704,7 +860,6 @@
 
         function getElevation(x, y, t) {
             let h = fbm(x, y, t);
-            // 大尺度慢速波动 - 速度降低50%
             h += Math.sin(x * 0.002 + t * 0.00005) * 40;
             h += Math.cos(y * 0.002 + t * 0.00004) * 40;
             h += Math.sin((x + y) * 0.0015 + t * 0.000025) * 30;
@@ -776,16 +931,6 @@
                 }
                 ctx.stroke();
             });
-            ctx.save();
-            ctx.globalCompositeOperation = 'screen';
-            levels.forEach((level, idx) => {
-                if (idx % 3 === 0) {
-                    ctx.strokeStyle = `rgba(210, 255, 0, 0.04)`;
-                    ctx.lineWidth = 12;
-                    ctx.stroke();
-                }
-            });
-            ctx.restore();
         }
 
         const particles = [];
@@ -802,7 +947,6 @@
 
         function drawParticles(t) {
             particles.forEach(p => {
-                // 粒子速度也降低50%
                 p.x += p.vx + Math.sin(t * 0.00015 + p.phase) * 0.015;
                 p.y += p.vy + Math.cos(t * 0.00012 + p.phase) * 0.015;
                 if (p.x < 0) p.x = width;
@@ -828,91 +972,441 @@
         animate();
         // ===== 背景动画结束 =====
 
-        // 解析输入
-        async function parseWithAI() {
-    const input = document.getElementById('inputArea').value.trim();
-    if (!input) { alert('请输入基金数据'); return; }
-    
-    showLoading("PARSING DATA", "AI正在解析自然语言");
-    
-    try {
-        console.log('发送请求:', `${API_BASE_URL}/api/parse_funds`);
-        console.log('发送内容:', input);
-        
-        const response = await fetch(`${API_BASE_URL}/api/parse_funds`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                text: input
-            })
-        });
-        
-        console.log('响应状态:', response.status);
-        
-        // 如果响应不成功，显示详细错误
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error('服务器返回错误:', errorData);
-            throw new Error(errorData.error || `服务器错误 ${response.status}: ${response.statusText}`);
+        // ===== AI区域展开/折叠 =====
+        function toggleAISection() {
+            const section = document.getElementById('aiSection');
+            const icon = document.getElementById('aiToggleIcon');
+            
+            if (section.classList.contains('hidden')) {
+                section.classList.remove('hidden');
+                icon.classList.add('rotate-90');
+                // 自动聚焦到输入框
+                setTimeout(() => document.getElementById('inputArea').focus(), 100);
+            } else {
+                section.classList.add('hidden');
+                icon.classList.remove('rotate-90');
+            }
         }
         
-        const data = await response.json();
-        console.log('收到数据:', data);
-        
-        if (!data.success) {
-            throw new Error(data.error || '后端返回解析失败');
+        // ===== 清空AI输入 =====
+        function clearAIInput() {
+            document.getElementById('inputArea').value = '';
+            document.getElementById('inputArea').focus();
         }
         
-        parsedFunds = data.funds;
-        if (!parsedFunds || parsedFunds.length === 0) {
-            throw new Error('未识别到基金，请检查输入格式（例如：110011 10000元）');
+        // ===== 将AI解析的基金添加到列表 =====
+        function addAIParsedFundsToList(funds) {
+            if (!funds || funds.length === 0) return;
+            
+            let addedCount = 0;
+            let updatedCount = 0;
+            
+            funds.forEach(fund => {
+                // 检查是否已存在
+                const existingIndex = manualFunds.findIndex(f => f.code === fund.code);
+                
+                if (existingIndex >= 0) {
+                    // 更新现有基金（如果AI返回了持仓金额）
+                    if (fund.holding > 0) {
+                        manualFunds[existingIndex].holding = fund.holding;
+                    }
+                    // 更新名称（如果AI返回的更完整）
+                    if (fund.name && fund.name.trim()) {
+                        manualFunds[existingIndex].name = fund.name;
+                    }
+                    updatedCount++;
+                } else {
+                    // 添加新基金
+                    manualFunds.push({
+                        code: fund.code,
+                        name: fund.name || fund.code,
+                        holding: fund.holding || 0
+                    });
+                    addedCount++;
+                }
+            });
+            
+            // 保存到缓存
+            saveToCache();
+            
+            // 更新显示
+            renderManualFundList();
+            updateParsedFundsFromManual();
+            
+            return { added: addedCount, updated: updatedCount };
         }
-        
-        displayPreview();
-        document.getElementById('calcBtn').disabled = false;
-        document.getElementById('calcBtn').classList.remove('opacity-40');
-        gsap.from('#previewSection', {opacity: 0, y: 20, duration: 0.6});
-        
-    } catch (error) {
-        console.error('详细错误:', error);
-        // 显示具体错误而不是模糊提示
-        alert('解析失败: ' + error.message);
-    } finally {
-        hideLoading();
-    }
-}
 
-        function displayPreview() {
-            const section = document.getElementById('previewSection');
-            const list = document.getElementById('previewList');
-            section.classList.remove('hidden');
-            list.innerHTML = parsedFunds.map((fund, i) => `
-                <div class="fund-card p-6 rounded-lg flex items-center justify-between" style="animation: countUp 0.5s ease-out ${i * 0.1}s backwards">
-                    <div class="flex items-center gap-4">
-                        <div class="w-14 h-14 rounded-lg bg-[#d2ff00]/10 border-2 border-[#d2ff00]/40 flex items-center justify-center text-[#d2ff00] font-elegant text-2xl italic font-black">${i + 1}</div>
-                        <div>
-                            <div class="font-elegant text-xl text-[#f0f2e6] font-black">${fund.name || '未命名基金'}</div>
-                            <div class="text-sm text-[#d2ff00]/70 mono font-bold mt-1">${fund.code}</div>
-                        </div>
+        // ===== 基金搜索功能 =====
+        const searchInput = document.getElementById('fundSearchInput');
+        const searchDropdown = document.getElementById('searchDropdown');
+
+        searchInput.addEventListener('input', function() {
+            const keyword = this.value.trim();
+            
+            clearTimeout(searchTimeout);
+            
+            if (keyword.length < 2) {
+                searchDropdown.classList.remove('active');
+                return;
+            }
+            
+            searchTimeout = setTimeout(() => searchFund(keyword), 300);
+        });
+
+        searchInput.addEventListener('keydown', function(e) {
+            const items = searchDropdown.querySelectorAll('.search-item');
+            let selected = searchDropdown.querySelector('.search-item.selected');
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (!selected) {
+                    items[0]?.classList.add('selected');
+                } else {
+                    selected.classList.remove('selected');
+                    const next = selected.nextElementSibling;
+                    if (next) next.classList.add('selected');
+                    else items[0]?.classList.add('selected');
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!selected) {
+                    items[items.length - 1]?.classList.add('selected');
+                } else {
+                    selected.classList.remove('selected');
+                    const prev = selected.previousElementSibling;
+                    if (prev) prev.classList.add('selected');
+                    else items[items.length - 1]?.classList.add('selected');
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (selected) {
+                    const fundData = selected.getAttribute('data-fund');
+                    try {
+                        const fund = JSON.parse(decodeURIComponent(escape(atob(fundData))));
+                        selectFund(fund);
+                    } catch (e) {
+                        console.error('解析基金数据失败:', e);
+                    }
+                }
+            } else if (e.key === 'Escape') {
+                searchDropdown.classList.remove('active');
+            }
+        });
+
+        // 点击外部关闭下拉框
+        document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+                searchDropdown.classList.remove('active');
+            }
+        });
+
+        async function searchFund(keyword) {
+            console.log('Searching for:', keyword);
+            const searchLoading = document.getElementById('searchLoading');
+            
+            try {
+                // 显示加载动画
+                searchLoading.classList.remove('hidden');
+                
+                const url = `${API_BASE_URL}/api/search_fund?keyword=${encodeURIComponent(keyword)}&limit=10`;
+                console.log('Request URL:', url);
+                
+                const response = await fetch(url);
+                console.log('Response status:', response.status);
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (data.success && data.results && data.results.length > 0) {
+                    renderSearchResults(data.results);
+                } else if (data.error) {
+                    console.error('API error:', data.error);
+                    searchDropdown.innerHTML = '<div class="search-item"><div class="search-item-name">搜索出错: ' + data.error + '</div></div>';
+                    searchDropdown.classList.add('active');
+                } else {
+                    searchDropdown.innerHTML = '<div class="search-item"><div class="search-item-name">未找到相关基金</div></div>';
+                    searchDropdown.classList.add('active');
+                }
+            } catch (error) {
+                console.error('搜索失败:', error);
+                searchDropdown.innerHTML = '<div class="search-item"><div class="search-item-name">请求失败，请检查后端服务</div></div>';
+                searchDropdown.classList.add('active');
+            } finally {
+                // 隐藏加载动画
+                searchLoading.classList.add('hidden');
+            }
+        }
+
+        function renderSearchResults(results) {
+            searchDropdown.innerHTML = results.map((fund, index) => {
+                // 使用 base64 编码避免引号问题
+                const fundData = btoa(unescape(encodeURIComponent(JSON.stringify(fund))));
+                return `
+                <div class="search-item ${index === 0 ? 'selected' : ''}" data-fund="${fundData}">
+                    <div class="search-item-code">${escapeHtml(fund.code)}</div>
+                    <div class="search-item-name">${escapeHtml(fund.name)}</div>
+                    <div class="search-item-type">${escapeHtml(fund.type)} · ${escapeHtml(fund.pinyin)}</div>
+                </div>
+            `}).join('');
+            
+            // 绑定点击事件
+            searchDropdown.querySelectorAll('.search-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const fundData = this.getAttribute('data-fund');
+                    try {
+                        const fund = JSON.parse(decodeURIComponent(escape(atob(fundData))));
+                        selectFund(fund);
+                    } catch (e) {
+                        console.error('解析基金数据失败:', e);
+                    }
+                });
+            });
+            
+            searchDropdown.classList.add('active');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // 测试后端连接
+        async function testBackendConnection() {
+            try {
+                console.log('Testing backend connection...');
+                const response = await fetch(`${API_BASE_URL}/api/health`);
+                console.log('Health check status:', response.status);
+                const data = await response.json();
+                console.log('Health check data:', data);
+                alert('后端连接成功！版本: ' + (data.version || 'unknown'));
+            } catch (error) {
+                console.error('Backend connection failed:', error);
+                alert('后端连接失败！请确保后端服务已启动在 ' + API_BASE_URL);
+            }
+        }
+        
+        // 直接测试搜索（调试用）
+        async function testSearch() {
+            const keyword = searchInput.value.trim() || '白酒';
+            console.log('Direct test search for:', keyword);
+            await searchFund(keyword);
+        }
+
+        function selectFund(fund) {
+            selectedFund = fund;
+            searchInput.value = `${fund.code} - ${fund.name}`;
+            searchDropdown.classList.remove('active');
+            document.getElementById('fundHoldingInput').focus();
+        }
+
+        // ===== 手动添加基金 =====
+        function addFund() {
+            if (!selectedFund) {
+                alert('请先搜索并选择基金');
+                return;
+            }
+            
+            const holdingInput = document.getElementById('fundHoldingInput');
+            const holdingValue = holdingInput.value.trim();
+            // 支持不输入金额（默认为0）
+            const holding = holdingValue ? parseFloat(holdingValue) : 0;
+            
+            if (isNaN(holding) || holding < 0) {
+                alert('请输入有效的持仓金额');
+                return;
+            }
+            
+            // 检查是否已存在
+            const exists = manualFunds.find(f => f.code === selectedFund.code);
+            if (exists) {
+                if (!confirm('该基金已存在，是否覆盖？')) {
+                    return;
+                }
+                manualFunds = manualFunds.filter(f => f.code !== selectedFund.code);
+            }
+            
+            manualFunds.push({
+                code: selectedFund.code,
+                name: selectedFund.name,
+                holding: holding
+            });
+            
+            // 保存到缓存
+            saveToCache();
+            
+            // 重置输入
+            searchInput.value = '';
+            holdingInput.value = '';
+            selectedFund = null;
+            
+            // 更新显示
+            renderManualFundList();
+            updateParsedFundsFromManual();
+        }
+
+        function renderManualFundList() {
+            const container = document.getElementById('manualFundList');
+            const countEl = document.getElementById('fundCount');
+            
+            countEl.textContent = manualFunds.length;
+            
+            if (manualFunds.length === 0) {
+                container.innerHTML = '<div class="fund-list-empty">暂无基金，请在上方搜索添加</div>';
+                return;
+            }
+            
+            container.innerHTML = manualFunds.map((fund, index) => `
+                <div class="fund-list-item" style="animation: countUp 0.3s ease-out ${index * 0.05}s backwards">
+                    <div>
+                        <div class="font-elegant text-lg text-[#f0f2e6] font-black">${fund.name}</div>
+                        <div class="text-sm text-[#d2ff00]/70 mono font-bold">${fund.code}</div>
                     </div>
-                    <div class="text-right">
-                        <div class="font-elegant text-2xl text-[#d2ff00] mono font-black">¥${parseFloat(fund.holding).toLocaleString()}</div>
-                        <div class="text-xs text-[#5a5d52] uppercase tracking-widest mt-1 font-bold">持仓金额</div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right">
+                            <div class="font-elegant text-xl text-[#d2ff00] mono font-black">¥${fund.holding.toLocaleString()}</div>
+                        </div>
+                        <button onclick="removeFund(${index})" class="cyber-btn danger px-3 py-2 rounded text-sm">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
                     </div>
                 </div>
             `).join('');
         }
 
-        // 网格分析
-        async function calculateGridAnalysis() {
-            if (parsedFunds.length === 0) return;
+        function removeFund(index) {
+            manualFunds.splice(index, 1);
+            saveToCache();
+            renderManualFundList();
+            updateParsedFundsFromManual();
+        }
+
+        function clearAllFunds() {
+            if (manualFunds.length === 0) return;
+            if (!confirm('确定要清空所有基金吗？')) return;
             
-            showLoading("ANALYZING GRID", "正在计算90日高点与网格档位");
+            manualFunds = [];
+            saveToCache();
+            renderManualFundList();
+            updateParsedFundsFromManual();
+        }
+
+        function updateParsedFundsFromManual() {
+            parsedFunds = [...manualFunds];
+            
+            const calcBtn = document.getElementById('calcBtn');
+            if (parsedFunds.length > 0) {
+                calcBtn.disabled = false;
+                calcBtn.classList.remove('opacity-40');
+            } else {
+                calcBtn.disabled = true;
+                calcBtn.classList.add('opacity-40');
+            }
+        }
+
+        // ===== 本地缓存功能 =====
+        function saveToCache() {
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify(manualFunds));
+            } catch (e) {
+                console.error('缓存失败:', e);
+            }
+        }
+
+        function loadCachedFunds() {
+            try {
+                const cached = localStorage.getItem(CACHE_KEY);
+                if (cached) {
+                    const funds = JSON.parse(cached);
+                    if (funds && funds.length > 0) {
+                        manualFunds = funds;
+                        renderManualFundList();
+                        updateParsedFundsFromManual();
+                        alert(`已加载 ${funds.length} 只基金`);
+                        return;
+                    }
+                }
+                alert('没有缓存的基金数据');
+            } catch (e) {
+                console.error('读取缓存失败:', e);
+                alert('读取缓存失败');
+            }
+        }
+
+        // 页面加载时自动加载缓存
+        window.addEventListener('load', function() {
+            try {
+                const cached = localStorage.getItem(CACHE_KEY);
+                if (cached) {
+                    const funds = JSON.parse(cached);
+                    if (funds && funds.length > 0) {
+                        manualFunds = funds;
+                        renderManualFundList();
+                        updateParsedFundsFromManual();
+                    }
+                }
+            } catch (e) {
+                console.error('自动加载缓存失败:', e);
+            }
+        });
+
+        // ===== AI解析功能 =====
+        async function parseWithAI() {
+            const input = document.getElementById('inputArea').value.trim();
+            if (!input) { alert('请输入基金数据'); return; }
+            
+            showLoading("PARSING DATA", "AI正在解析自然语言");
             
             try {
-                const response = await fetch(`${API_BASE_URL}/api/grid_analysis`, {
+                const response = await fetch(`${API_BASE_URL}/api/parse_funds`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: input })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `服务器错误 ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '后端返回解析失败');
+                }
+                
+                const parsedFunds = data.funds;
+                if (!parsedFunds || parsedFunds.length === 0) {
+                    throw new Error('未识别到基金，请检查输入格式');
+                }
+                
+                // 将AI解析的基金添加到统一列表
+                const result = addAIParsedFundsToList(parsedFunds);
+                
+                // 清空输入
+                document.getElementById('inputArea').value = '';
+                
+                // 折叠AI区域
+                toggleAISection();
+                
+                // 显示成功提示
+                alert(`成功添加 ${result.added} 只基金，更新 ${result.updated} 只基金`);
+                
+            } catch (error) {
+                alert('解析失败: ' + error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // ===== 基金分析 =====
+        async function calculateAnalysis() {
+            if (parsedFunds.length === 0) return;
+            
+            showLoading("ANALYZING", "正在计算估值与90日高点回撤");
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/fund_analysis`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -925,11 +1419,8 @@
                 });
                 
                 const data = await response.json();
-                currentGridData = data;
-                displayGridResults(data);
-                
-                document.getElementById('strategySection').classList.remove('hidden');
-                gsap.from('#strategySection', {opacity: 0, y: 30, duration: 0.8, delay: 0.3});
+                currentData = data;
+                displayResults(data);
                 
             } catch (error) {
                 alert('连接后端失败，请确保服务运行在 localhost:5000');
@@ -939,65 +1430,35 @@
             }
         }
 
-        function displayGridResults(data) {
+        function displayResults(data) {
             const section = document.getElementById('resultSection');
             section.classList.remove('hidden');
             
             const details = data.detailed_results;
-            const signals = data.trading_signals;
             
-            // 计算汇总指标
             const totalHolding = details.reduce((sum, d) => sum + d.holding, 0);
             const avgChange = details.reduce((sum, d) => sum + d.real_time_estimate.today_change_pct, 0) / details.length;
             const avgDrawdown = details.reduce((sum, d) => sum + d.synthetic_forecast.estimated_drawdown_pct, 0) / details.length;
             
-            // 动画数字
             animateValue('totalHolding', totalHolding, '¥');
             animateValue('totalChange', avgChange, '', '%');
             animateValue('avgDrawdown', avgDrawdown, '', '%');
-            document.getElementById('activeSignals').textContent = signals.length;
             
-            // 显示交易信号
-            if (signals.length > 0) {
-                const alertBox = document.getElementById('signalsAlert');
-                alertBox.classList.remove('hidden');
-                document.getElementById('signalsList').innerHTML = signals.map(s => `
-                    <div class="flex items-center justify-between p-3 bg-[#d2ff00]/10 rounded border border-[#d2ff00]/30">
-                        <div>
-                            <span class="font-bold text-[#d2ff00]">${s.fund_name}</span>
-                            <span class="text-sm text-[#a0a598] ml-2">${s.level}</span>
-                        </div>
-                        <div class="text-right">
-                            <div class="text-sm font-bold text-[#d2ff00]">${s.allocation}% 资金部署</div>
-                            <div class="text-xs text-[#a0a598]">${s.instruction.substring(0, 30)}...</div>
-                        </div>
-                    </div>
-                `).join('');
-            }
-            
-            // 渲染基金卡片
             const container = document.getElementById('fundDetails');
             container.innerHTML = details.map((fund, index) => {
                 const estimate = fund.real_time_estimate;
                 const hist = fund.historical_drawdown;
                 const forecast = fund.synthetic_forecast;
-                const strategy = fund.strategy_signal;
                 
                 const isUp = estimate.today_change_pct >= 0;
                 const changeColor = isUp ? 'up' : 'down';
-                const isTriggered = strategy.is_triggered;
-                
-                const drawdown = Math.abs(forecast.estimated_drawdown_pct);
-                const maxDrawdown = 35;
-                const barWidth = Math.min((drawdown / maxDrawdown) * 100, 100);
                 
                 return `
-                    <div class="fund-card p-6 rounded-xl ${isTriggered ? 'triggered' : ''}" style="animation: countUp 0.6s ease-out ${index * 0.1}s backwards">
+                    <div class="fund-card p-6 rounded-xl" style="animation: countUp 0.6s ease-out ${index * 0.1}s backwards">
                         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-[#d2ff00]/10 pb-4">
                             <div class="flex items-center gap-3">
                                 <h4 class="font-elegant font-black text-2xl text-[#f0f2e6] tracking-wide">${fund.fund_name}</h4>
                                 <span class="px-3 py-1 rounded border border-[#d2ff00]/30 text-[#d2ff00] text-xs mono font-bold bg-[#d2ff00]/5">${fund.fund_code}</span>
-                                <span class="level-badge ${isTriggered ? 'level-triggered' : 'level-safe'}">${strategy.current_level}</span>
                             </div>
                             <div class="text-right">
                                 <div class="text-3xl font-elegant font-black mono ${changeColor}">
@@ -1029,40 +1490,6 @@
                                 <div class="metric-label">持仓金额</div>
                                 <div class="metric-value text-[#f0f2e6]">¥${fund.holding.toLocaleString()}</div>
                                 <div class="text-xs text-[#5a5d52] mt-1">市值</div>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <div class="flex justify-between text-xs mb-2">
-                                <span class="text-[#5a5d52]">网格进度 (距离90日高点)</span>
-                                <span class="text-[#d2ff00] font-bold">${strategy.current_level}</span>
-                            </div>
-                            <div class="grid-level-bar">
-                                <div class="grid-level-fill" style="width: ${barWidth}%"></div>
-                            </div>
-                            <div class="flex justify-between text-xs mt-1 text-[#5a5d52] relative h-4">
-                                <span>0%</span>
-                                <span style="position: absolute; left: 14%;">-5%</span>
-                                <span style="position: absolute; left: 23%;">-8%</span>
-                                <span style="position: absolute; left: 37%;">-13%</span>
-                                <span style="position: absolute; left: 51%;">-18%</span>
-                                <span style="position: absolute; left: 71%;">-25%</span>
-                                <span style="position: absolute; left: 100%; transform: translateX(-100%);">-35%</span>
-                            </div>
-                        </div>
-                        
-                        <div class="bg-[#d2ff00]/5 border border-[#d2ff00]/20 rounded-lg p-4">
-                            <div class="flex items-start gap-3">
-                                <div class="text-2xl">⚡</div>
-                                <div>
-                                    <div class="text-sm font-bold text-[#d2ff00] mb-1">执行指令: ${strategy.tactical_position}</div>
-                                    <div class="text-sm text-[#c0c5b0] leading-relaxed">${strategy.instruction}</div>
-                                    ${strategy.next_threshold ? `
-                                        <div class="text-xs text-[#5a5d52] mt-2">
-                                            下一档阈值: ${strategy.next_threshold}% | 距离: ${Math.abs(forecast.distance_to_next_level || 0)}%
-                                        </div>
-                                    ` : ''}
-                                </div>
                             </div>
                         </div>
                         
@@ -1098,52 +1525,6 @@
             }
             requestAnimationFrame(update);
         }
-
-        // AI策略生成
-        async function generateAIStrategy() {
-            if (!currentGridData) return;
-            showLoading("GENERATING STRATEGY", "DeepSeek分析90日网格配置");
-            
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/ai_strategy`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(currentGridData)
-                });
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                
-                const formatText = (text) => text
-                    .replace(/#{3}\s*(.*?)\n/g, '<h3>$1</h3>')
-                    .replace(/#{2}\s*(.*?)\n/g, '<h3>$1</h3>')
-                    .replace(/-\s*(.*?)\n/g, '<li>$1</li>')
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\n\n/g, '</p><p>');
-                
-                document.getElementById('gridExecutionStrategy').innerHTML = `<div class="space-y-2">${formatText(data.grid_execution)}</div>`;
-                document.getElementById('positionManagementStrategy').innerHTML = `<div class="space-y-2">${formatText(data.position_management)}</div>`;
-                
-            } catch (error) {
-                alert('策略生成失败');
-            } finally {
-                hideLoading();
-            }
-        }
-
-        // 输入监听
-        document.getElementById('inputArea').addEventListener('input', () => {
-            document.getElementById('calcBtn').disabled = true;
-            document.getElementById('calcBtn').classList.add('opacity-40');
-            document.getElementById('previewSection').classList.add('hidden');
-            document.getElementById('resultSection').classList.add('hidden');
-            document.getElementById('strategySection').classList.add('hidden');
-        });
     </script>
 </body>
 </html>

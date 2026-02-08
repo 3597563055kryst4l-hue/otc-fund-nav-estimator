@@ -2,7 +2,7 @@ chcp 65001
 @echo off
 REM 运行桌面上的Python程序
 echo 正在运行桌面上的Python程序...
-python "C:\Users\35975\Desktop\fund\test.py"
+python "C:\Users\35975\Desktop\fund\app.py"
 
 REM 如果上面的命令失败，尝试使用python3
 if errorlevel 1 (
