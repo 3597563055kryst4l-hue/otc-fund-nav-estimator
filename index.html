@@ -1957,6 +1957,7 @@
                 const estimate = fund.real_time_estimate;
                 const hist = fund.historical_drawdown;
                 const forecast = fund.synthetic_forecast;
+                const riskMetrics = fund.risk_metrics || {};
                 
                 const isUp = estimate.today_change_pct >= 0;
                 const changeColor = isUp ? 'up' : 'down';
@@ -1998,6 +1999,43 @@
                                 <div class="metric-label">持仓金额</div>
                                 <div class="metric-value text-[var(--text)]">¥${fund.holding.toLocaleString()}</div>
                                 <div class="text-xs text-[var(--text-dim)] mt-1">市值</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 风险指标部分 -->
+                        <div class="mt-6 pt-4 border-t border-[var(--border-color)]">
+                            <h5 class="font-elegant font-bold text-lg text-[var(--text)] mb-4">风险指标</h5>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                <div class="metric-box">
+                                    <div class="metric-label">夏普比率</div>
+                                    <div class="metric-value text-[var(--text)]">${riskMetrics.sharpe_ratio !== null && riskMetrics.sharpe_ratio !== undefined ? riskMetrics.sharpe_ratio.toFixed(2) : 'N/A'}</div>
+                                    <div class="text-xs text-[var(--text-dim)] mt-1">风险调整收益</div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="metric-label">年化波动率</div>
+                                    <div class="metric-value text-[var(--text)]">${riskMetrics.annual_volatility !== null && riskMetrics.annual_volatility !== undefined ? riskMetrics.annual_volatility.toFixed(2) : 'N/A'}%</div>
+                                    <div class="text-xs text-[var(--text-dim)] mt-1">风险水平</div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="metric-label">最大回撤</div>
+                                    <div class="metric-value down">${riskMetrics.max_drawdown !== null && riskMetrics.max_drawdown !== undefined ? riskMetrics.max_drawdown.toFixed(2) : 'N/A'}%</div>
+                                    <div class="text-xs text-[var(--text-dim)] mt-1">历史最大下跌</div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="metric-label">同类排名(1年)</div>
+                                    <div class="metric-value text-[var(--text)]">${riskMetrics.rank_1y || 'N/A'}</div>
+                                    <div class="text-xs text-[var(--text-dim)] mt-1">相对表现</div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="metric-label">同类排名(3年)</div>
+                                    <div class="metric-value text-[var(--text)]">${riskMetrics.rank_3y || 'N/A'}</div>
+                                    <div class="text-xs text-[var(--text-dim)] mt-1">相对表现</div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="metric-label">同类排名(5年)</div>
+                                    <div class="metric-value text-[var(--text)]">${riskMetrics.rank_5y || 'N/A'}</div>
+                                    <div class="text-xs text-[var(--text-dim)] mt-1">相对表现</div>
+                                </div>
                             </div>
                         </div>
                         

@@ -852,6 +852,101 @@ class FundAnalyzer:
     def __init__(self):
         self.estimator = SmartFundEstimator()
     
+    def get_fund_risk_metrics(self, fund_code: str) -> Optional[Dict]:
+        """
+        获取基金风险指标：夏普比率、年化波动率、最大回撤、同类排名
+        """
+        try:
+            logger.info(f"\n[步骤4] 获取基金风险指标...")
+            logger.info(f"  基金代码: {fund_code}")
+            
+            # 调用akshare接口获取风险指标数据
+            logger.info(f"  调用ak.fund_individual_analysis_xq接口...")
+            df = ak.fund_individual_analysis_xq(symbol=fund_code)
+            
+            logger.info(f"  接口返回数据类型: {type(df)}")
+            if df is not None:
+                logger.info(f"  接口返回数据形状: {df.shape}")
+                logger.info(f"  接口返回数据前5行: {df.head().to_dict()}")
+            
+            if df is None or df.empty:
+                logger.warning(f"无法获取基金 {fund_code} 风险指标数据")
+                return None
+            
+            # 提取需要的数据
+            risk_metrics = {
+                'sharpe_ratio': None,
+                'annual_volatility': None,
+                'max_drawdown': None,
+                'rank_1y': None,
+                'rank_3y': None,
+                'rank_5y': None
+            }
+            
+            # 遍历数据行，提取所需指标
+            logger.info(f"  开始提取风险指标数据...")
+            for index, row in df.iterrows():
+                period = str(row.get('周期', '')).strip()
+                logger.info(f"  行 {index}: 周期={period}")
+                
+                if '近1年' in period:
+                    # 提取近1年数据
+                    try:
+                        risk_metrics['sharpe_ratio'] = float(row.get('年化夏普比率', None))
+                        logger.info(f"  提取近1年夏普比率成功: {risk_metrics['sharpe_ratio']}")
+                    except Exception as e:
+                        logger.warning(f"  提取近1年夏普比率失败: {e}")
+                        pass
+                    
+                    try:
+                        risk_metrics['annual_volatility'] = float(row.get('年化波动率', None))
+                        logger.info(f"  提取近1年年化波动率成功: {risk_metrics['annual_volatility']}")
+                    except Exception as e:
+                        logger.warning(f"  提取近1年年化波动率失败: {e}")
+                        pass
+                    
+                    try:
+                        max_drawdown = float(row.get('最大回撤', None))
+                        risk_metrics['max_drawdown'] = -max_drawdown  # 转换为负数表示下跌
+                        logger.info(f"  提取近1年最大回撤成功: {risk_metrics['max_drawdown']}")
+                    except Exception as e:
+                        logger.warning(f"  提取近1年最大回撤失败: {e}")
+                        pass
+                    
+                    try:
+                        risk_metrics['rank_1y'] = str(row.get('较同类风险收益比', None))
+                        logger.info(f"  提取近1年同类排名成功: {risk_metrics['rank_1y']}")
+                    except Exception as e:
+                        logger.warning(f"  提取近1年同类排名失败: {e}")
+                        pass
+                
+                elif '近3年' in period:
+                    # 提取近3年数据
+                    try:
+                        risk_metrics['rank_3y'] = str(row.get('较同类风险收益比', None))
+                        logger.info(f"  提取近3年同类排名成功: {risk_metrics['rank_3y']}")
+                    except Exception as e:
+                        logger.warning(f"  提取近3年同类排名失败: {e}")
+                        pass
+                
+                elif '近5年' in period:
+                    # 提取近5年数据
+                    try:
+                        risk_metrics['rank_5y'] = str(row.get('较同类风险收益比', None))
+                        logger.info(f"  提取近5年同类排名成功: {risk_metrics['rank_5y']}")
+                    except Exception as e:
+                        logger.warning(f"  提取近5年同类排名失败: {e}")
+                        pass
+            
+            logger.info(f"  风险指标获取成功: {risk_metrics}")
+            return risk_metrics
+            
+        except Exception as e:
+            logger.error(f"获取基金风险指标失败 {fund_code}: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+            return None
+    
     def analyze_fund(self, fund_code: str, fund_name: str, holding: float) -> Optional[Dict]:
         """
         分析单只基金：估值 + 回撤(90日)
@@ -888,6 +983,20 @@ class FundAnalyzer:
         estimated_nav = yesterday_nav * (1 + today_change / 100)
         estimated_drawdown = (estimated_nav - rolling_high) / rolling_high * 100  # 负数（如-11.65）
         
+        # 4. 获取风险指标
+        risk_metrics = self.get_fund_risk_metrics(fund_code)
+        
+        # 确保risk_metrics不为None，而是一个空字典
+        if risk_metrics is None:
+            risk_metrics = {
+                'sharpe_ratio': None,
+                'annual_volatility': None,
+                'max_drawdown': None,
+                'rank_1y': None,
+                'rank_3y': None,
+                'rank_5y': None
+            }
+        
         logger.info(f"\n[步骤3] 计算合成指标...")
         logger.info(f"  昨日净值: {yesterday_nav}")
         logger.info(f"  90日高点: {rolling_high} ({drawdown_result['high_date']})")
@@ -895,8 +1004,9 @@ class FundAnalyzer:
         logger.info(f"  今日估值: {today_change:+.2f}%")
         logger.info(f"  预估净值: {estimated_nav:.4f}")
         logger.info(f"  预估回撤: {estimated_drawdown:.2f}%")
+        logger.info(f"  风险指标: {risk_metrics}")
         
-        # 4. 组装完整结果（确保所有类型可JSON序列化）
+        # 5. 组装完整结果（确保所有类型可JSON序列化）
         result = {
             'fund_code': str(fund_code),
             'fund_name': str(fund_name),
@@ -922,6 +1032,8 @@ class FundAnalyzer:
                 'estimated_drawdown_pct': float(round(estimated_drawdown, 2)),  # 负数表示下跌
                 'drawdown_change_today': float(round(estimated_drawdown - historical_drawdown_neg, 2))
             },
+            
+            'risk_metrics': risk_metrics,
             
             'raw_estimate_data': estimate_result
         }

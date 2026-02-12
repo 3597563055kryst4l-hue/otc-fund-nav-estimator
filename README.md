@@ -6,6 +6,7 @@
 
 - 📊 **基金估值分析** - 实时估算基金当日涨跌幅
 - 📉 **90日高点回撤** - 分析基金距离近期高点的回撤幅度
+- 📋 **风险指标分析** - 获取夏普比率、年化波动率、最大回撤和同类排名（1年/3年/5年）
 - 🤖 **AI 智能解析** - 支持自然语言输入，自动识别基金代码和持仓
 - 🔍 **基金搜索** - 支持代码/名称/拼音模糊搜索
 - 📝 **混合输入** - AI 解析和手动搜索可同时使用，统一列表管理
@@ -131,7 +132,7 @@ python app.py
 | `GET /api/search_fund?keyword=xxx` | - | 基金搜索 |
 | `GET /api/fund_info/<code>` | - | 获取基金基本信息 |
 | `POST /api/parse_funds` | JSON | AI 解析自然语言 |
-| `POST /api/fund_analysis` | JSON | 基金分析（估值+回撤） |
+| `POST /api/fund_analysis` | JSON | 基金分析（估值+回撤+风险指标） |
 | `POST /api/estimate` | JSON | 仅估值 |
 | `POST /api/drawdown` | JSON | 仅回撤 |
 | `GET /api/get_indices` | - | 获取实时指数涨跌幅 |
@@ -149,6 +150,64 @@ curl -X POST http://localhost:5000/api/fund_analysis \
       {"code": "012414", "name": "白酒基金", "holding": 20000}
     ]
   }'
+```
+
+**返回示例（包含风险指标）：**
+```json
+{
+  "detailed_results": [
+    {
+      "fund_code": "000001",
+      "fund_name": "华夏成长混合",
+      "holding": 10000.0,
+      "real_time_estimate": {
+        "today_change_pct": 0.25,
+        "estimated_nav": 1.1398,
+        "market": "A股",
+        "benchmark": "沪深300",
+        "update_time": "18:54:08"
+      },
+      "historical_drawdown": {
+        "yesterday_nav": 1.137,
+        "rolling_high_90d": 1.202,
+        "high_date": "2026-01-28",
+        "drawdown_to_high_pct": -5.41,
+        "is_at_rolling_high": false
+      },
+      "synthetic_forecast": {
+        "estimated_drawdown_pct": -5.17,
+        "drawdown_change_today": 0.24
+      },
+      "risk_metrics": {
+        "sharpe_ratio": 1.49,
+        "annual_volatility": 22.52,
+        "max_drawdown": -12.48,
+        "rank_1y": "47",
+        "rank_3y": "49",
+        "rank_5y": "27"
+      },
+      "raw_estimate_data": {
+        "benchmark": "沪深300",
+        "benchmark_change": 0.12,
+        "estimate_change": 0.25,
+        "fund_code": "000001",
+        "fund_name": "华夏成长混合",
+        "holding": 10000.0,
+        "market": "A股",
+        "persistence": 0.55,
+        "position_ratio": 88.0,
+        "profit": 24.95,
+        "top10_ratio": 26.0,
+        "update_time": "18:54:08"
+      }
+    }
+  ],
+  "summary": {
+    "analyzed_successfully": 1,
+    "timestamp": "2026-02-12T18:54:10.236988",
+    "total_funds": 1
+  }
+}
 ```
 
 **AI 解析：**
