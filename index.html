@@ -668,9 +668,277 @@
             color: var(--text-dim);
             font-style: italic;
         }
+
+        /* Toast 通知样式 */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast {
+            min-width: 280px;
+            max-width: 400px;
+            padding: 14px 20px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+            pointer-events: auto;
+            animation: toastIn 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .toast.toast-out {
+            animation: toastOut 0.3s ease-in forwards;
+        }
+
+        .toast-success {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .toast-error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
+        .toast-info {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+        }
+
+        .toast-warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+
+        .toast-icon {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateX(100px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes toastOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(100px);
+            }
+        }
+
+        /* 主题切换过渡动画 */
+        body, .glass-panel, .fund-card, .cyber-btn, .cyber-input, .metric-box {
+            transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease;
+        }
+
+        /* 按钮加载状态 */
+        .cyber-btn.loading {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        .cyber-btn.loading .btn-text {
+            opacity: 0;
+        }
+
+        .cyber-btn.loading::after {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: btn-spin 0.8s linear infinite;
+        }
+
+        @keyframes btn-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 搜索无结果样式优化 */
+        .search-empty {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-dim);
+        }
+
+        .search-empty-icon {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 10px;
+            opacity: 0.5;
+        }
+
+        /* 基金勾选复选框样式 */
+        .fund-checkbox {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #6b7280;
+            border-radius: 4px;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            background: var(--input-bg);
+        }
+
+        .fund-checkbox:hover {
+            border-color: var(--primary);
+        }
+
+        .fund-checkbox:checked {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .fund-checkbox:checked::after {
+            content: '';
+            position: absolute;
+            left: 5px;
+            top: 2px;
+            width: 6px;
+            height: 10px;
+            border: solid var(--bg);
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        [data-theme="dark"] .fund-checkbox {
+            border-color: rgba(210, 255, 0, 0.4);
+        }
+
+        [data-theme="dark"] .fund-checkbox:hover {
+            border-color: rgba(210, 255, 0, 0.8);
+        }
+
+        [data-theme="dark"] .fund-checkbox:checked {
+            background: #d2ff00;
+            border-color: #d2ff00;
+        }
+
+        [data-theme="dark"] .fund-checkbox:checked::after {
+            border-color: #1a1c18;
+        }
+
+        /* 主题切换按钮样式 */
+        #themeToggle {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            color: #1c1917;
+        }
+
+        #themeToggle:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: scale(1.05);
+        }
+
+        [data-theme="dark"] #themeToggle {
+            background: rgba(30, 33, 26, 0.9);
+            border: 1px solid rgba(210, 255, 0, 0.3);
+            color: #d2ff00;
+        }
+
+        [data-theme="dark"] #themeToggle:hover {
+            background: rgba(40, 43, 36, 0.95);
+            border-color: rgba(210, 255, 0, 0.5);
+            box-shadow: 0 0 20px rgba(210, 255, 0, 0.2);
+        }
+
+        /* 主题切换过渡覆盖层 */
+        .theme-transition-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9998;
+            opacity: 0;
+        }
+
+        .theme-transition-overlay.light {
+            background: #e8e8e8;
+        }
+
+        .theme-transition-overlay.dark {
+            background: #1a1c18;
+        }
+
+        .theme-transition-overlay.animating {
+            pointer-events: auto;
+            opacity: 1;
+        }
+
+        @keyframes themeExpand {
+            0% {
+                clip-path: circle(0px at var(--transition-x, 50%) var(--transition-y, 50%));
+            }
+            100% {
+                clip-path: circle(150% at var(--transition-x, 50%) var(--transition-y, 50%));
+            }
+        }
+
+        @keyframes themeContract {
+            0% {
+                clip-path: circle(150% at var(--transition-x, 50%) var(--transition-y, 50%));
+            }
+            100% {
+                clip-path: circle(0px at var(--transition-x, 50%) var(--transition-y, 50%));
+            }
+        }
+
+        /* 主题切换时禁用元素的默认过渡 */
+        body.theme-transitioning,
+        body.theme-transitioning .glass-panel,
+        body.theme-transitioning .fund-card,
+        body.theme-transitioning .cyber-btn,
+        body.theme-transitioning .cyber-input,
+        body.theme-transitioning .metric-box,
+        body.theme-transitioning .vignette,
+        body.theme-transitioning #canvas {
+            transition: none !important;
+        }
     </style>
 </head>
 <body>
+    <!-- Toast 通知容器 -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- 主题切换过渡覆盖层 -->
+    <div id="themeTransitionOverlay" class="theme-transition-overlay"></div>
+
+    <!-- 深色/浅色模式切换按钮 - 固定在右上角 -->
+    <button id="themeToggle" class="fixed top-4 right-4 z-50 p-3 rounded-full bg-white/80 border border-gray-300 text-gray-800 transition-all duration-300 hover:bg-white shadow-lg backdrop-blur-sm">
+        <svg id="themeIcon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+        </svg>
+    </button>
+
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay">
         <div class="pulse-rings">
@@ -716,15 +984,9 @@
             </div>
         </div>
         <!-- 右侧内容区域 -->
-        <div class="lg:ml-[240px]">
+        <div class="max-w-4xl mx-auto">
             <!-- Header -->
-            <header class="text-center mb-12 relative">
-            <!-- 深色/浅色模式切换按钮 -->
-            <button id="themeToggle" onclick="toggleTheme()" class="absolute top-0 right-0 p-3 rounded-full bg-white/50 border border-gray-300 text-gray-800 transition-all duration-300 hover:bg-white/80 dark:bg-gray-800/50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800/80">
-                <svg id="themeIcon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
-                </svg>
-            </button>
+            <header class="text-center mb-12">
             
             <h1 class="text-7xl md:text-8xl font-elegant font-black mb-4 glow-text italic tracking-wide text-[var(--text)]">
                 FundVision
@@ -782,11 +1044,11 @@
                     <div class="mt-4 flex gap-3">
                         <button onclick="parseWithAI()" id="parseBtn" class="cyber-btn px-6 py-3 rounded-lg flex items-center justify-center gap-2">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                            <span>智能解析并添加</span>
+                            <span class="btn-text">智能解析并添加</span>
                         </button>
                         <button onclick="clearAIInput()" class="cyber-btn secondary px-6 py-3 rounded-lg flex items-center gap-2">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                            <span>清空</span>
+                            <span class="btn-text">清空</span>
                         </button>
                     </div>
                 </div>
@@ -846,7 +1108,7 @@
                     <div class="md:col-span-3 flex items-end">
                         <button onclick="addFund()" id="addFundBtn" class="cyber-btn w-full py-3 rounded-lg flex items-center justify-center gap-2">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-                            <span>添加</span>
+                            <span class="btn-text">添加</span>
                         </button>
                     </div>
                 </div>
@@ -856,9 +1118,13 @@
             <div class="mt-6">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-elegant font-black text-[var(--text)]">
-                        已添加基金 (<span id="fundCount">0</span>)
+                        已添加基金 (<span id="fundCount">0</span>) <span id="selectedCount" class="text-[var(--text-dim)] text-sm font-normal"></span>
                     </h3>
                     <div class="flex gap-2">
+                        <button id="compareBtn" onclick="goToCompare()" class="cyber-btn px-4 py-2 rounded text-sm hidden" disabled>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"></path></svg>
+                            <span class="ml-1">对比分析</span>
+                        </button>
                         <button onclick="clearAllFunds()" class="cyber-btn danger px-4 py-2 rounded text-sm">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                             <span class="ml-1">清空全部</span>
@@ -874,11 +1140,11 @@
                 </div>
             </div>
 
-            <!-- 执行分析按钮 -->
+            <!-- 计算实时估值按钮 -->
             <div class="mt-8 pt-6 border-t border-[#1c1917]/10">
                 <button onclick="calculateAnalysis()" id="calcBtn" class="cyber-btn px-8 py-5 rounded-lg w-full flex items-center justify-center gap-3 opacity-40" disabled>
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"></path></svg>
-                    <span>执行分析</span>
+                    <span class="btn-text">计算实时估值</span>
                 </button>
             </div>
         </div>
@@ -930,6 +1196,41 @@
         
         // localStorage key
         const CACHE_KEY = 'fundvision_cached_funds';
+
+        // ===== Toast 通知系统 =====
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            
+            const icons = {
+                success: '<svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>',
+                error: '<svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>',
+                info: '<svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+                warning: '<svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>'
+            };
+            
+            toast.innerHTML = `${icons[type] || icons.info}<span>${message}</span>`;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('toast-out');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ===== 按钮加载状态 =====
+        function setButtonLoading(btnId, loading, loadingText = '处理中...') {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            
+            if (loading) {
+                btn.classList.add('loading');
+                btn.dataset.originalText = btn.querySelector('.btn-text')?.textContent || btn.textContent;
+            } else {
+                btn.classList.remove('loading');
+            }
+        }
 
         // 加载动画控制
         function showLoading(statusText, subText) {
@@ -1335,7 +1636,36 @@
             const isDark = currentTheme === 'dark';
             console.log('Is dark theme:', isDark);
             
-            // 切换主题
+            // 获取按钮位置
+            const themeToggleBtn = document.getElementById('themeToggle');
+            const rect = themeToggleBtn.getBoundingClientRect();
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+            
+            // 获取覆盖层元素
+            const overlay = document.getElementById('themeTransitionOverlay');
+            
+            // 设置过渡起始位置
+            overlay.style.setProperty('--transition-x', `${x}px`);
+            overlay.style.setProperty('--transition-y', `${y}px`);
+            
+            // 设置覆盖层颜色（当前主题的背景色，用于收缩露出新主题）
+            if (isDark) {
+                overlay.classList.remove('light');
+                overlay.classList.add('dark');
+            } else {
+                overlay.classList.remove('dark');
+                overlay.classList.add('light');
+            }
+            
+            // 添加过渡中状态，禁用默认过渡
+            document.body.classList.add('theme-transitioning');
+            
+            // 先让覆盖层全屏显示
+            overlay.style.clipPath = 'circle(150% at ' + x + 'px ' + y + 'px)';
+            overlay.classList.add('animating');
+            
+            // 立即切换主题（覆盖层遮挡，用户看不到瞬间切换）
             if (isDark) {
                 console.log('Switching to light theme');
                 document.documentElement.removeAttribute('data-theme');
@@ -1354,6 +1684,21 @@
             console.log('Updating canvas fill color');
             updateCanvasFillColor();
             console.log('Canvas fill color updated to:', canvasFillColor);
+            
+            // 强制重绘后开始收缩动画（从全屏收缩到按钮位置）
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    overlay.style.animation = 'themeContract 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards';
+                });
+            });
+            
+            // 动画结束后清理
+            setTimeout(() => {
+                overlay.classList.remove('animating');
+                overlay.style.clipPath = '';
+                overlay.style.animation = '';
+                document.body.classList.remove('theme-transitioning');
+            }, 700);
         }
         
         function updateCanvasFillColor() {
@@ -1417,7 +1762,8 @@
                     manualFunds.push({
                         code: fund.code,
                         name: fund.name || fund.code,
-                        holding: fund.holding || 0
+                        holding: fund.holding || 0,
+                        selected: false
                     });
                     addedCount++;
                 }
@@ -1442,7 +1788,7 @@
             
             clearTimeout(searchTimeout);
             
-            if (keyword.length < 2) {
+            if (keyword.length < 1) {
                 searchDropdown.classList.remove('active');
                 return;
             }
@@ -1518,15 +1864,34 @@
                     renderSearchResults(data.results);
                 } else if (data.error) {
                     console.error('API error:', data.error);
-                    searchDropdown.innerHTML = '<div class="search-item"><div class="search-item-name">搜索出错: ' + data.error + '</div></div>';
+                    searchDropdown.innerHTML = `
+                        <div class="search-empty">
+                            <svg class="search-empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <div>搜索出错: ${escapeHtml(data.error)}</div>
+                        </div>`;
                     searchDropdown.classList.add('active');
                 } else {
-                    searchDropdown.innerHTML = '<div class="search-item"><div class="search-item-name">未找到相关基金</div></div>';
+                    searchDropdown.innerHTML = `
+                        <div class="search-empty">
+                            <svg class="search-empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                            <div>未找到相关基金</div>
+                            <div class="text-xs mt-1">请尝试其他关键词</div>
+                        </div>`;
                     searchDropdown.classList.add('active');
                 }
             } catch (error) {
                 console.error('搜索失败:', error);
-                searchDropdown.innerHTML = '<div class="search-item"><div class="search-item-name">请求失败，请检查后端服务</div></div>';
+                searchDropdown.innerHTML = `
+                    <div class="search-empty">
+                        <svg class="search-empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <div>请求失败，请检查后端服务</div>
+                    </div>`;
                 searchDropdown.classList.add('active');
             } finally {
                 // 隐藏加载动画
@@ -1576,10 +1941,10 @@
                 console.log('Health check status:', response.status);
                 const data = await response.json();
                 console.log('Health check data:', data);
-                alert('后端连接成功！版本: ' + (data.version || 'unknown'));
+                showToast('后端连接成功！版本: ' + (data.version || 'unknown'), 'success');
             } catch (error) {
                 console.error('Backend connection failed:', error);
-                alert('后端连接失败！请确保后端服务已启动在 ' + API_BASE_URL);
+                showToast('后端连接失败！请确保后端服务已启动在 ' + API_BASE_URL, 'error');
             }
         }
         
@@ -1619,7 +1984,7 @@
         // ===== 手动添加基金 =====
         function addFund() {
             if (!selectedFund) {
-                alert('请先搜索并选择基金');
+                showToast('请先搜索并选择基金', 'warning');
                 return;
             }
             
@@ -1629,7 +1994,7 @@
             const holding = holdingValue ? parseFloat(holdingValue) : 0;
             
             if (isNaN(holding) || holding < 0) {
-                alert('请输入有效的持仓金额');
+                showToast('请输入有效的持仓金额', 'warning');
                 return;
             }
             
@@ -1645,7 +2010,8 @@
             manualFunds.push({
                 code: selectedFund.code,
                 name: selectedFund.name,
-                holding: holding
+                holding: holding,
+                selected: false
             });
             
             // 保存到缓存
@@ -1659,13 +2025,23 @@
             // 更新显示
             renderManualFundList();
             updateParsedFundsFromManual();
+            
+            showToast('基金添加成功', 'success');
         }
 
         function renderManualFundList() {
             const container = document.getElementById('manualFundList');
             const countEl = document.getElementById('fundCount');
+            const selectedCountEl = document.getElementById('selectedCount');
             
             countEl.textContent = manualFunds.length;
+            
+            const selectedCount = getSelectedFunds().length;
+            if (selectedCount > 0) {
+                selectedCountEl.textContent = `| 已选 ${selectedCount} 只`;
+            } else {
+                selectedCountEl.textContent = '';
+            }
             
             if (manualFunds.length === 0) {
                 container.innerHTML = '<div class="fund-list-empty">暂无基金，请在上方搜索添加</div>';
@@ -1674,9 +2050,12 @@
             
             container.innerHTML = manualFunds.map((fund, index) => `
                 <div class="fund-list-item" style="animation: countUp 0.3s ease-out ${index * 0.05}s backwards">
-                    <div>
-                        <div class="font-elegant text-lg text-[var(--text)] font-black">${fund.name}</div>
-                        <div class="text-sm text-[var(--text)]/70 mono font-bold">${fund.code}</div>
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" class="fund-checkbox" data-index="${index}" onchange="toggleFundSelection(${index})" ${fund.selected ? 'checked' : ''}>
+                        <div>
+                            <div class="font-elegant text-lg text-[var(--text)] font-black">${fund.name}</div>
+                            <div class="text-sm text-[var(--text)]/70 mono font-bold">${fund.code}</div>
+                        </div>
                     </div>
                     <div class="flex items-center gap-4">
                         <div class="text-right">
@@ -1688,6 +2067,8 @@
                     </div>
                 </div>
             `).join('');
+            
+            updateCompareButtonState();
         }
 
         function removeFund(index) {
@@ -1695,6 +2076,26 @@
             saveToCache();
             renderManualFundList();
             updateParsedFundsFromManual();
+        }
+
+        function toggleFundSelection(index) {
+            if (manualFunds[index]) {
+                manualFunds[index].selected = !manualFunds[index].selected;
+                saveToCache();
+                updateCompareButtonState();
+                
+                const selectedCountEl = document.getElementById('selectedCount');
+                const selectedCount = getSelectedFunds().length;
+                if (selectedCount > 0) {
+                    selectedCountEl.textContent = `| 已选 ${selectedCount} 只`;
+                } else {
+                    selectedCountEl.textContent = '';
+                }
+            }
+        }
+
+        function getSelectedFunds() {
+            return manualFunds.filter(f => f.selected);
         }
 
         function clearAllFunds() {
@@ -1718,6 +2119,42 @@
                 calcBtn.disabled = true;
                 calcBtn.classList.add('opacity-40');
             }
+            
+            updateCompareButtonState();
+        }
+        
+        function updateCompareButtonState() {
+            const compareBtn = document.getElementById('compareBtn');
+            const selectedFunds = getSelectedFunds();
+            const selectedCount = selectedFunds.length;
+            
+            if (selectedCount < 2) {
+                compareBtn.classList.remove('hidden');
+                compareBtn.disabled = true;
+                compareBtn.title = '请至少勾选2只基金';
+            } else if (selectedCount <= 4) {
+                compareBtn.classList.remove('hidden');
+                compareBtn.disabled = false;
+                compareBtn.title = `已选${selectedCount}只基金`;
+            } else {
+                compareBtn.classList.remove('hidden');
+                compareBtn.disabled = true;
+                compareBtn.title = '最多选4只';
+            }
+        }
+        
+        function goToCompare() {
+            const selectedFunds = getSelectedFunds();
+            
+            if (selectedFunds.length < 2 || selectedFunds.length > 4) {
+                return;
+            }
+            
+            const codes = selectedFunds.map(f => f.code).join(',');
+            const names = selectedFunds.map(f => encodeURIComponent(f.name)).join(',');
+            const theme = document.documentElement.getAttribute('data-theme') || 'light';
+            
+            window.location.href = `compare.html?codes=${codes}&names=${names}&theme=${theme}`;
         }
 
         // ===== 本地缓存功能 =====
@@ -1738,18 +2175,18 @@
                         manualFunds = funds;
                         renderManualFundList();
                         updateParsedFundsFromManual();
-                        alert(`已加载 ${funds.length} 只基金`);
+                        showToast(`已加载 ${funds.length} 只基金`, 'success');
                         // 检查是否需要执行分析操作
                         checkAndExecuteAnalysis();
                         return;
                     }
                 }
-                alert('没有缓存的基金数据');
+                showToast('没有缓存的基金数据', 'info');
                 // 检查是否需要执行分析操作
                 checkAndExecuteAnalysis();
             } catch (e) {
                 console.error('读取缓存失败:', e);
-                alert('读取缓存失败');
+                showToast('读取缓存失败', 'error');
                 // 检查是否需要执行分析操作
                 checkAndExecuteAnalysis();
             }
@@ -1850,8 +2287,10 @@
         // ===== AI解析功能 =====
         async function parseWithAI() {
             const input = document.getElementById('inputArea').value.trim();
-            if (!input) { alert('请输入基金数据'); return; }
+            if (!input) { showToast('请输入基金数据', 'warning'); return; }
             
+            const parseBtn = document.getElementById('parseBtn');
+            setButtonLoading('parseBtn', true);
             showLoading("PARSING DATA", "AI正在解析自然语言");
             
             try {
@@ -1887,11 +2326,12 @@
                 toggleAISection();
                 
                 // 显示成功提示
-                alert(`成功添加 ${result.added} 只基金，更新 ${result.updated} 只基金`);
+                showToast(`成功添加 ${result.added} 只基金，更新 ${result.updated} 只基金`, 'success');
                 
             } catch (error) {
-                alert('解析失败: ' + error.message);
+                showToast('解析失败: ' + error.message, 'error');
             } finally {
+                setButtonLoading('parseBtn', false);
                 hideLoading();
             }
         }
@@ -1899,6 +2339,11 @@
         // ===== 基金分析 =====
         async function calculateAnalysis() {
             if (parsedFunds.length === 0) return;
+            
+            const calcBtn = document.getElementById('calcBtn');
+            const originalDisabled = calcBtn.disabled;
+            calcBtn.disabled = true;
+            setButtonLoading('calcBtn', true);
             
             showLoading("ANALYZING", "正在计算估值与90日高点回撤");
             
@@ -1918,11 +2363,14 @@
                 const data = await response.json();
                 currentData = data;
                 displayResults(data);
+                showToast('分析完成', 'success');
                 
             } catch (error) {
-                alert('连接后端失败，请确保服务运行在 localhost:5000');
+                showToast('连接后端失败，请确保服务运行在 localhost:5000', 'error');
                 console.error(error);
             } finally {
+                setButtonLoading('calcBtn', false);
+                calcBtn.disabled = originalDisabled;
                 hideLoading();
             }
         }
@@ -2086,9 +2534,6 @@
             // 加载缓存的基金
             loadCachedFunds();
             
-            // 检查AI配置
-            checkAIConfig();
-            
             // 添加主题切换按钮的事件监听器
             const themeToggleBtn = document.getElementById('themeToggle');
             if (themeToggleBtn) {
@@ -2100,8 +2545,6 @@
             } else {
                 console.error('Theme toggle button not found');
             }
-            
-
         });
     </script>
 </div>

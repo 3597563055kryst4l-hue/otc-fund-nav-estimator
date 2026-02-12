@@ -12,6 +12,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+    <!-- ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     
     <style>
         :root {
@@ -195,6 +197,156 @@
             opacity: 0.05;
             z-index: 1;
         }
+        
+        /* 主题切换过渡动画 */
+        body, .glass-panel, .cyber-btn {
+            transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease;
+        }
+        
+        /* 移动端卡片式布局 */
+        .holdings-cards {
+            display: none;
+        }
+        
+        .holding-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--card-shadow);
+        }
+        
+        .holding-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        
+        .holding-card-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+        
+        .holding-card-code {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .holding-card-change {
+            font-size: 1.25rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .holding-card-footer {
+            display: flex;
+            justify-content: space-between;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .holding-card-metric {
+            text-align: center;
+        }
+        
+        .holding-card-metric-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+        
+        .holding-card-metric-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+        
+        @media (max-width: 768px) {
+            .table-container {
+                display: none;
+            }
+            
+            .holdings-cards {
+                display: block;
+            }
+        }
+        
+        /* 净值走势图表样式 */
+        #navChart {
+            width: 100%;
+            height: 400px;
+        }
+        
+        .chart-period-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-dim);
+        }
+        
+        .chart-period-btn:hover {
+            background: var(--btn-bg);
+            color: var(--primary);
+        }
+        
+        .chart-period-btn.active {
+            background: var(--primary);
+            color: var(--bg);
+            border-color: var(--primary);
+        }
+        
+        .chart-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-top: 16px;
+        }
+        
+        @media (max-width: 640px) {
+            .chart-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            #navChart {
+                height: 300px;
+            }
+        }
+        
+        .chart-stat-item {
+            text-align: center;
+            padding: 12px;
+            background: var(--input-bg);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .chart-stat-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+        
+        .chart-stat-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+        
+        .chart-stat-value.up {
+            color: var(--danger);
+        }
+        
+        .chart-stat-value.down {
+            color: var(--success);
+        }
     </style>
 </head>
 <body class="min-h-screen">
@@ -269,6 +421,39 @@
             </div>
         </div>
         
+        <!-- NAV Chart Section -->
+        <div class="glass-panel rounded-2xl p-6 glow-box mb-8">
+            <div class="flex flex-col md:flex-row md:items-center justify-between mb-4">
+                <h3 class="text-xl font-bold text-primary mb-4 md:mb-0">净值走势</h3>
+                <div class="flex flex-wrap gap-2">
+                    <button class="chart-period-btn" data-days="30" onclick="loadNavHistory(30)">1个月</button>
+                    <button class="chart-period-btn" data-days="60" onclick="loadNavHistory(60)">2个月</button>
+                    <button class="chart-period-btn active" data-days="90" onclick="loadNavHistory(90)">3个月</button>
+                    <button class="chart-period-btn" data-days="180" onclick="loadNavHistory(180)">6个月</button>
+                    <button class="chart-period-btn" data-days="365" onclick="loadNavHistory(365)">1年</button>
+                </div>
+            </div>
+            <div id="navChart"></div>
+            <div class="chart-stats" id="chartStats">
+                <div class="chart-stat-item">
+                    <div class="chart-stat-label">区间最高</div>
+                    <div class="chart-stat-value" id="statMaxNav">--</div>
+                </div>
+                <div class="chart-stat-item">
+                    <div class="chart-stat-label">区间最低</div>
+                    <div class="chart-stat-value" id="statMinNav">--</div>
+                </div>
+                <div class="chart-stat-item">
+                    <div class="chart-stat-label">当前净值</div>
+                    <div class="chart-stat-value" id="statCurrentNav">--</div>
+                </div>
+                <div class="chart-stat-item">
+                    <div class="chart-stat-label">区间收益</div>
+                    <div class="chart-stat-value" id="statTotalReturn">--</div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Calculation Method -->
         <div class="glass-panel rounded-2xl p-6 glow-box mb-8">
             <h3 class="text-xl font-bold text-primary mb-4">加权计算方法</h3>
@@ -282,6 +467,7 @@
         <!-- Holdings Table -->
         <div class="glass-panel rounded-2xl p-6 glow-box">
             <h3 class="text-xl font-bold text-primary mb-6">实时持仓股票涨跌幅</h3>
+            <!-- 桌面端表格 -->
             <div class="table-container">
                 <table class="w-full min-w-[800px]">
                     <thead>
@@ -301,6 +487,10 @@
                     </tbody>
                 </table>
             </div>
+            <!-- 移动端卡片 -->
+            <div id="holdingsCards" class="holdings-cards">
+                <div class="text-center text-[var(--text-dim)] py-8">正在加载持仓数据...</div>
+            </div>
         </div>
     </main>
     
@@ -317,6 +507,12 @@
         
         // 基金代码
         let fundCode = '';
+        
+        // ECharts 实例
+        let navChart = null;
+        
+        // 当前选中的时间周期
+        let currentDays = 90;
         
         // 页面加载完成后获取基金代码并加载详情
         document.addEventListener('DOMContentLoaded', function() {
@@ -335,6 +531,8 @@
             
             if (fundCode) {
                 loadFundDetail();
+                initNavChart();
+                loadNavHistory(90);
             } else {
                 // 没有基金代码，显示错误
                 document.getElementById('fundName').textContent = '错误';
@@ -417,7 +615,10 @@
             
             // 更新持仓表格
             const holdingsTable = document.getElementById('holdingsTable');
+            const holdingsCards = document.getElementById('holdingsCards');
+            
             if (data.holdings && data.holdings.length > 0) {
+                // 渲染表格（桌面端）
                 holdingsTable.innerHTML = data.holdings.map((holding, index) => {
                     const changeClass = holding.change > 0 ? 'up' : holding.change < 0 ? 'down' : '';
                     const changeText = holding.change >= 0 ? `+${holding.change}%` : `${holding.change}%`;
@@ -431,6 +632,34 @@
                         </tr>
                     `;
                 }).join('');
+                
+                // 渲染卡片（移动端）
+                holdingsCards.innerHTML = data.holdings.map((holding, index) => {
+                    const changeClass = holding.change > 0 ? 'up' : holding.change < 0 ? 'down' : '';
+                    const changeText = holding.change >= 0 ? `+${holding.change}%` : `${holding.change}%`;
+                    
+                    return `
+                        <div class="holding-card" style="animation: countUp 0.3s ease-out ${index * 0.05}s backwards">
+                            <div class="holding-card-header">
+                                <div>
+                                    <div class="holding-card-name">${holding.name}</div>
+                                    <div class="holding-card-code">${holding.code}</div>
+                                </div>
+                                <div class="holding-card-change ${changeClass}">${changeText}</div>
+                            </div>
+                            <div class="holding-card-footer">
+                                <div class="holding-card-metric">
+                                    <div class="holding-card-metric-label">占比</div>
+                                    <div class="holding-card-metric-value">${holding.ratio}%</div>
+                                </div>
+                                <div class="holding-card-metric">
+                                    <div class="holding-card-metric-label">贡献</div>
+                                    <div class="holding-card-metric-value ${holding.contribution >= 0 ? 'up' : 'down'}">${holding.contribution >= 0 ? '+' : ''}${(holding.contribution || 0).toFixed(3)}%</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
             } else {
                 holdingsTable.innerHTML = `
                     <tr>
@@ -439,12 +668,212 @@
                         </td>
                     </tr>
                 `;
+                holdingsCards.innerHTML = `
+                    <div class="text-center text-[var(--text-dim)] py-8">无法获取基金持仓数据</div>
+                `;
             }
         }
         
         // 刷新基金详情
         function refreshFundDetail() {
             loadFundDetail();
+            loadNavHistory(currentDays);
+        }
+        
+        // 初始化净值图表
+        function initNavChart() {
+            const chartDom = document.getElementById('navChart');
+            navChart = echarts.init(chartDom);
+            
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#d2ff00' : '#1c1917';
+            const lineColor = isDark ? '#d2ff00' : '#1c1917';
+            const areaColor = isDark ? 'rgba(210, 255, 0, 0.15)' : 'rgba(28, 25, 23, 0.1)';
+            const gridColor = isDark ? 'rgba(210, 255, 0, 0.1)' : 'rgba(28, 25, 23, 0.1)';
+            
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: isDark ? 'rgba(26, 28, 24, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                    borderColor: isDark ? 'rgba(210, 255, 0, 0.3)' : 'rgba(28, 25, 23, 0.2)',
+                    textStyle: {
+                        color: textColor
+                    },
+                    formatter: function(params) {
+                        const date = params[0].axisValue;
+                        const nav = params[0].data;
+                        return `<div style="font-weight:600">${date}</div><div>净值: ${nav}</div>`;
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    top: '5%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    data: [],
+                    axisLine: {
+                        lineStyle: {
+                            color: gridColor
+                        }
+                    },
+                    axisLabel: {
+                        color: textColor,
+                        fontSize: 11,
+                        formatter: function(value) {
+                            if (value && value.length >= 10) {
+                                return value.substring(5);
+                            }
+                            return value;
+                        }
+                    },
+                    axisTick: {
+                        show: false
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    scale: true,
+                    splitLine: {
+                        lineStyle: {
+                            color: gridColor,
+                            type: 'dashed'
+                        }
+                    },
+                    axisLine: {
+                        show: false
+                    },
+                    axisLabel: {
+                        color: textColor,
+                        fontSize: 11,
+                        formatter: function(value) {
+                            return value.toFixed(3);
+                        }
+                    }
+                },
+                series: [{
+                    name: '净值',
+                    type: 'line',
+                    smooth: true,
+                    symbol: 'none',
+                    lineStyle: {
+                        width: 2,
+                        color: lineColor
+                    },
+                    areaStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0,
+                            y: 0,
+                            x2: 0,
+                            y2: 1,
+                            colorStops: [{
+                                offset: 0,
+                                color: areaColor
+                            }, {
+                                offset: 1,
+                                color: 'rgba(0, 0, 0, 0)'
+                            }]
+                        }
+                    },
+                    data: []
+                }]
+            };
+            
+            navChart.setOption(option);
+            
+            window.addEventListener('resize', function() {
+                if (navChart) {
+                    navChart.resize();
+                }
+            });
+        }
+        
+        // 加载净值历史数据
+        async function loadNavHistory(days) {
+            currentDays = days;
+            
+            document.querySelectorAll('.chart-period-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (parseInt(btn.dataset.days) === days) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            if (!navChart) {
+                initNavChart();
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/get_nav_history?code=${fundCode}&days=${days}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateChart(data);
+                    updateChartStats(data.statistics);
+                } else {
+                    console.error('获取净值历史失败:', data.message);
+                    document.getElementById('statMaxNav').textContent = '加载失败';
+                    document.getElementById('statMinNav').textContent = '--';
+                    document.getElementById('statCurrentNav').textContent = '--';
+                    document.getElementById('statTotalReturn').textContent = '--';
+                }
+            } catch (error) {
+                console.error('获取净值历史出错:', error);
+            }
+        }
+        
+        // 更新图表
+        function updateChart(data) {
+            if (!navChart) return;
+            
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#d2ff00' : '#1c1917';
+            const lineColor = isDark ? '#d2ff00' : '#1c1917';
+            const areaColor = isDark ? 'rgba(210, 255, 0, 0.15)' : 'rgba(28, 25, 23, 0.1)';
+            const gridColor = isDark ? 'rgba(210, 255, 0, 0.1)' : 'rgba(28, 25, 23, 0.1)';
+            
+            navChart.setOption({
+                xAxis: {
+                    data: data.data.dates,
+                    axisLine: { lineStyle: { color: gridColor } },
+                    axisLabel: { color: textColor }
+                },
+                yAxis: {
+                    axisLabel: { color: textColor },
+                    splitLine: { lineStyle: { color: gridColor } }
+                },
+                series: [{
+                    lineStyle: { color: lineColor },
+                    areaStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0, y: 0, x2: 0, y2: 1,
+                            colorStops: [
+                                { offset: 0, color: areaColor },
+                                { offset: 1, color: 'rgba(0, 0, 0, 0)' }
+                            ]
+                        }
+                    },
+                    data: data.data.navs
+                }]
+            });
+        }
+        
+        // 更新图表统计信息
+        function updateChartStats(stats) {
+            document.getElementById('statMaxNav').textContent = stats.max_nav;
+            document.getElementById('statMinNav').textContent = stats.min_nav;
+            document.getElementById('statCurrentNav').textContent = stats.current_nav;
+            
+            const returnEl = document.getElementById('statTotalReturn');
+            const returnVal = stats.total_return;
+            returnEl.textContent = returnVal >= 0 ? `+${returnVal}%` : `${returnVal}%`;
+            returnEl.className = `chart-stat-value ${returnVal >= 0 ? 'up' : 'down'}`;
         }
         
         // 返回上一页

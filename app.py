@@ -15,6 +15,7 @@ from typing import Dict, List, Optional, Tuple
 from functools import wraps
 import numpy as np
 from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 加载环境变量
 load_dotenv()
@@ -1588,6 +1589,7 @@ def fund_analysis():
     """
     基金分析接口：估值 + 回撤（90日高点）
     不包含投资建议和网格策略
+    使用并行处理提升性能
     """
     data = request.get_json()
     funds = data.get('funds', [])
@@ -1598,26 +1600,32 @@ def fund_analysis():
         return jsonify({'error': msg}), 400
     
     logger.info(f"\n{'#'*70}")
-    logger.info(f"启动基金分析 - 共{len(funds)}只基金（精简版）")
+    logger.info(f"启动基金分析 - 共{len(funds)}只基金（并行处理版）")
     logger.info(f"{'#'*70}")
     
     results = []
     
-    for fund in funds:
+    def analyze_single_fund(fund):
         try:
             result = fund_analyzer.analyze_fund(
                 fund['code'],
                 fund.get('name', fund['code']),
                 float(fund.get('holding', 0))
             )
-            
-            if result:
-                results.append(result)
-            
-            time.sleep(1)  # 降低请求频率，避免被封
-            
+            return result
         except Exception as e:
             logger.error(f"分析基金 {fund['code']} 时出错: {e}")
+            return None
+    
+    # 使用线程池并行处理，最多5个并发
+    max_workers = min(5, len(funds))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_fund = {executor.submit(analyze_single_fund, fund): fund for fund in funds}
+        
+        for future in as_completed(future_to_fund):
+            result = future.result()
+            if result:
+                results.append(result)
     
     summary = {
         'total_funds': int(len(funds)),
@@ -1672,13 +1680,13 @@ def drawdown():
 def health():
     return jsonify({
         'status': 'ok', 
-        'version': '6.2 Manual-Input-Edition', 
+        'version': '6.4 Compare-Edition', 
         'time': str(datetime.now().isoformat()),
-        'modules': ['estimate', 'drawdown', 'fund_analysis', 'ai_parse', 'fund_search'],
+        'modules': ['estimate', 'drawdown', 'fund_analysis', 'ai_parse', 'fund_search', 'nav_history', 'nav_history_batch'],
         'default_window': '90d',
         'ai_enabled': ai_provider.is_configured(),
         'ai_provider': ai_provider.get_info(),
-        'note': '支持手动输入、基金搜索与本地缓存'
+        'note': '支持手动输入、基金搜索、本地缓存、净值走势图表、批量对比分析'
     })
 
 
@@ -1718,6 +1726,185 @@ def get_indices():
         
     except Exception as e:
         logger.error(f"API错误: {e}")
+        return jsonify({'error': '服务器内部错误'}), 500
+
+
+@app.route('/api/get_nav_history', methods=['GET'])
+@limiter.limit('30 per minute')
+def get_nav_history():
+    """
+    获取基金历史净值数据
+    GET: /api/get_nav_history?code=110011&days=90
+    """
+    try:
+        fund_code = request.args.get('code', '')
+        days = request.args.get('days', 90, type=int)
+        
+        if not fund_code:
+            return jsonify({'error': '缺少基金代码'}), 400
+        
+        fund_code = sanitize_fund_code(fund_code)
+        if not fund_code:
+            return jsonify({'error': '基金代码格式错误'}), 400
+        
+        if days not in [30, 60, 90, 180, 365]:
+            days = 90
+        
+        try:
+            df = ak.fund_open_fund_info_em(symbol=fund_code, indicator="单位净值走势")
+        except Exception as e:
+            logger.error(f"获取净值数据失败 {fund_code}: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'获取净值数据失败: {str(e)}'
+            })
+        
+        if df is None or df.empty:
+            return jsonify({
+                'success': False,
+                'message': '无法获取基金净值数据'
+            })
+        
+        df = df.iloc[:, :2].copy()
+        df.columns = ['date', 'nav']
+        df['date'] = pd.to_datetime(df['date'])
+        df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
+        df = df.dropna().sort_values('date')
+        
+        recent_df = df.tail(days)
+        
+        dates = recent_df['date'].dt.strftime('%Y-%m-%d').tolist()
+        navs = recent_df['nav'].round(4).tolist()
+        
+        if len(navs) > 0:
+            max_nav = float(recent_df['nav'].max())
+            min_nav = float(recent_df['nav'].min())
+            current_nav = float(navs[-1])
+            start_nav = float(navs[0])
+            total_return = ((current_nav - start_nav) / start_nav * 100) if start_nav > 0 else 0
+            
+            max_date = recent_df[recent_df['nav'] == recent_df['nav'].max()]['date'].iloc[-1].strftime('%Y-%m-%d')
+            min_date = recent_df[recent_df['nav'] == recent_df['nav'].min()]['date'].iloc[-1].strftime('%Y-%m-%d')
+        else:
+            max_nav = min_nav = current_nav = start_nav = total_return = 0
+            max_date = min_date = ''
+        
+        return jsonify({
+            'success': True,
+            'fund_code': fund_code,
+            'days': days,
+            'data': {
+                'dates': dates,
+                'navs': navs
+            },
+            'statistics': {
+                'max_nav': round(max_nav, 4),
+                'max_date': max_date,
+                'min_nav': round(min_nav, 4),
+                'min_date': min_date,
+                'current_nav': round(current_nav, 4),
+                'total_return': round(total_return, 2),
+                'data_points': len(navs)
+            },
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+    except Exception as e:
+        logger.error(f"API错误: {e}")
+        return jsonify({'error': '服务器内部错误'}), 500
+
+
+@app.route('/api/get_nav_history_batch', methods=['GET'])
+@limiter.limit('20 per minute')
+def get_nav_history_batch():
+    """
+    批量获取多只基金历史净值数据（用于对比分析）
+    GET: /api/get_nav_history_batch?codes=110011,110022,110033&days=90
+    """
+    try:
+        codes_param = request.args.get('codes', '')
+        days = request.args.get('days', 180, type=int)
+        
+        if not codes_param:
+            return jsonify({'error': '缺少基金代码'}), 400
+        
+        codes = [sanitize_fund_code(c.strip()) for c in codes_param.split(',') if c.strip()]
+        codes = [c for c in codes if c]
+        
+        if not codes:
+            return jsonify({'error': '没有有效的基金代码'}), 400
+        
+        if len(codes) > 4:
+            return jsonify({'error': '最多支持4只基金对比'}), 400
+        
+        if days not in [30, 90, 180, 365]:
+            days = 180
+        
+        results = []
+        
+        def fetch_single_fund(fund_code):
+            try:
+                df = ak.fund_open_fund_info_em(symbol=fund_code, indicator="单位净值走势")
+                
+                if df is None or df.empty:
+                    return None
+                
+                df = df.iloc[:, :2].copy()
+                df.columns = ['date', 'nav']
+                df['date'] = pd.to_datetime(df['date'])
+                df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
+                df = df.dropna().sort_values('date')
+                
+                recent_df = df.tail(days)
+                
+                dates = recent_df['date'].dt.strftime('%Y-%m-%d').tolist()
+                navs = recent_df['nav'].round(4).tolist()
+                
+                if len(navs) > 0:
+                    max_nav = float(recent_df['nav'].max())
+                    min_nav = float(recent_df['nav'].min())
+                    current_nav = float(navs[-1])
+                    start_nav = float(navs[0])
+                    total_return = ((current_nav - start_nav) / start_nav * 100) if start_nav > 0 else 0
+                else:
+                    max_nav = min_nav = current_nav = start_nav = total_return = 0
+                
+                return {
+                    'code': fund_code,
+                    'data': {
+                        'dates': dates,
+                        'navs': navs
+                    },
+                    'statistics': {
+                        'max_nav': round(max_nav, 4),
+                        'min_nav': round(min_nav, 4),
+                        'current_nav': round(current_nav, 4),
+                        'total_return': round(total_return, 2),
+                        'data_points': len(navs)
+                    }
+                }
+            except Exception as e:
+                logger.error(f"获取基金 {fund_code} 净值数据失败: {e}")
+                return None
+        
+        with ThreadPoolExecutor(max_workers=min(4, len(codes))) as executor:
+            future_to_code = {executor.submit(fetch_single_fund, code): code for code in codes}
+            
+            for future in as_completed(future_to_code):
+                result = future.result()
+                if result:
+                    results.append(result)
+        
+        return jsonify({
+            'success': True,
+            'funds': results,
+            'days': days,
+            'count': len(results),
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+    except Exception as e:
+        logger.error(f"批量获取净值数据API错误: {e}")
         return jsonify({'error': '服务器内部错误'}), 500
 
 

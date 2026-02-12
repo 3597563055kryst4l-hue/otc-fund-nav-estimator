@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>基金对比分析 - FundVision</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #1c1917;
+            --primary-dim: rgba(28, 25, 23, 0.6);
+            --bg: #e8e8e8;
+            --surface: rgba(232, 232, 232, 0.95);
+            --card-bg: #E8EDE3;
+            --btn-bg: #D0D9C6;
+            --input-bg: #F9FAF7;
+            --text: #1c1917;
+            --text-dim: #6b7280;
+            --danger: #dc2626;
+            --success: #059669;
+            --card-shadow: 0 6px 24px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.12);
+            --border-color: rgba(229, 231, 235, 1);
+        }
+        
+        [data-theme="dark"] {
+            --primary: #d2ff00;
+            --primary-dim: rgba(210, 255, 0, 0.6);
+            --bg: #1a1c18;
+            --surface: rgba(30, 33, 26, 0.85);
+            --card-bg: rgba(26, 28, 24, 0.95);
+            --btn-bg: rgba(210, 255, 0, 0.15);
+            --input-bg: rgba(10, 12, 8, 0.7);
+            --text: #d2ff00;
+            --text-dim: #a0a598;
+            --danger: #ff5252;
+            --success: #d2ff00;
+            --card-shadow: 0 0 40px rgba(210, 255, 0, 0.1), inset 0 0 40px rgba(210, 255, 0, 0.05);
+            --border-color: rgba(210, 255, 0, 0.25);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            overflow-x: hidden;
+            background: var(--bg);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text);
+            line-height: 1.6;
+            font-weight: 450;
+        }
+        
+        [data-theme="dark"] body {
+            font-family: 'Inter', 'Noto Serif SC', serif;
+            font-weight: 600;
+        }
+
+        #canvas {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            filter: contrast(1.1) brightness(1.2);
+            z-index: 0;
+        }
+        
+        [data-theme="dark"] #canvas {
+            filter: contrast(1.2) brightness(1.1);
+        }
+
+        .vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, 
+                transparent 0%, 
+                rgba(243, 244, 246, 0.4) 70%, 
+                rgba(243, 244, 246, 0.95) 100%);
+            z-index: 1;
+        }
+        
+        [data-theme="dark"] .vignette {
+            background: radial-gradient(ellipse at center, 
+                transparent 0%, 
+                rgba(26, 28, 24, 0.4) 70%, 
+                rgba(26, 28, 24, 0.95) 100%);
+        }
+
+        .noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.03;
+            z-index: 2;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        .font-elegant {
+            font-family: 'Cormorant Garamond', 'Noto Serif SC', serif;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        
+        .mono { font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+        
+        .glow-text {
+            text-shadow: 0 0 8px rgba(28, 25, 23, 0.1), 0 0 20px rgba(28, 25, 23, 0.05);
+        }
+        
+        .glow-box {
+            box-shadow: var(--card-shadow);
+        }
+        
+        [data-theme="dark"] .glow-text {
+            text-shadow: 0 0 10px rgba(210, 255, 0, 0.4), 0 0 30px rgba(210, 255, 0, 0.2);
+        }
+        
+        [data-theme="dark"] .glow-box {
+            box-shadow: 0 0 40px rgba(210, 255, 0, 0.1), inset 0 0 40px rgba(210, 255, 0, 0.05);
+        }
+        
+        .glass-panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            position: relative;
+            z-index: 10;
+        }
+        
+        .glass-panel::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(28, 25, 23, 0.02) 0%, transparent 50%);
+            pointer-events: none;
+            border-radius: inherit;
+        }
+        
+        [data-theme="dark"] .glass-panel {
+            background: rgba(22, 24, 20, 0.9);
+            border: 1px solid rgba(210, 255, 0, 0.15);
+        }
+        
+        [data-theme="dark"] .glass-panel::before {
+            background: linear-gradient(135deg, rgba(210, 255, 0, 0.06) 0%, transparent 50%);
+        }
+        
+        .cyber-btn {
+            background: var(--btn-bg);
+            border: 1px solid var(--border-color);
+            color: var(--primary);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-weight: 500;
+            font-size: 1rem;
+            letter-spacing: 0.05em;
+            text-transform: none;
+            border-radius: 8px;
+        }
+        
+        .cyber-btn:hover {
+            background: var(--primary-dim);
+            box-shadow: 0 2px 8px var(--primary-dim);
+            transform: translateY(-1px);
+        }
+        
+        .cyber-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        [data-theme="dark"] .cyber-btn {
+            background: linear-gradient(135deg, rgba(210, 255, 0, 0.15), rgba(210, 255, 0, 0.05));
+            border: 1px solid rgba(210, 255, 0, 0.5);
+        }
+        
+        [data-theme="dark"] .cyber-btn:hover {
+            background: rgba(210, 255, 0, 0.25);
+            box-shadow: 0 2px 8px rgba(210, 255, 0, 0.3);
+        }
+        
+        .cyber-btn.secondary {
+            background: var(--input-bg);
+            border-color: var(--border-color);
+            color: var(--text-dim);
+        }
+
+        .cyber-btn.secondary:hover {
+            background: var(--input-bg);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        
+        [data-theme="dark"] .cyber-btn.secondary {
+            background: var(--input-bg);
+            border-color: rgba(210, 255, 0, 0.3);
+            color: var(--text-dim);
+        }
+        
+        [data-theme="dark"] .cyber-btn.secondary:hover {
+            background: var(--input-bg);
+            border-color: rgba(210, 255, 0, 0.5);
+            color: rgba(210, 255, 0, 1);
+        }
+
+        .up { color: var(--danger); }
+        .down { color: var(--success); }
+        
+        body, .glass-panel, .cyber-btn {
+            transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease;
+        }
+
+        .fund-color-1 { color: #d2ff00; }
+        .fund-color-2 { color: #00d4ff; }
+        .fund-color-3 { color: #ff6b6b; }
+        .fund-color-4 { color: #a855f7; }
+        
+        .fund-dot-1 { background: #d2ff00; }
+        .fund-dot-2 { background: #00d4ff; }
+        .fund-dot-3 { background: #ff6b6b; }
+        .fund-dot-4 { background: #a855f7; }
+
+        #compareChart {
+            width: 100%;
+            height: 450px;
+        }
+        
+        @media (max-width: 768px) {
+            #compareChart {
+                height: 320px;
+            }
+        }
+
+        .period-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-dim);
+        }
+        
+        .period-btn:hover {
+            background: var(--btn-bg);
+            color: var(--primary);
+        }
+        
+        .period-btn.active {
+            background: var(--primary);
+            color: var(--bg);
+            border-color: var(--primary);
+        }
+
+        .stat-card {
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 4px;
+        }
+        
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .fund-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .fund-legend-item:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .fund-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            z-index: 9999;
+            display: none;
+            opacity: 0;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            border: 1px solid var(--border-color);
+        }
+
+        .loading-overlay.active { display: flex; opacity: 1; }
+
+        .pulse-rings {
+            position: relative;
+            width: 180px;
+            height: 180px;
+            margin-bottom: 30px;
+        }
+
+        .pulse-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            border: 1px solid var(--primary);
+            box-shadow: 0 0 15px rgba(28, 25, 23, 0.1), inset 0 0 15px rgba(28, 25, 23, 0.05);
+        }
+
+        .pulse-ring:nth-child(1) { width: 50px; height: 50px; animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
+        .pulse-ring:nth-child(2) { width: 100px; height: 100px; animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.3s; opacity: 0.6; }
+        .pulse-ring:nth-child(3) { width: 150px; height: 150px; animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.6s; opacity: 0.3; }
+
+        @keyframes pulse-ring {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+        }
+
+        .loading-core {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 30px;
+            height: 30px;
+            background: var(--primary);
+            border-radius: 50%;
+            box-shadow: 0 0 20px var(--primary), 0 0 40px rgba(28, 25, 23, 0.2);
+            animation: core-pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes core-pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            50% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.8; }
+        }
+
+        .loading-text-container { text-align: center; z-index: 10; }
+
+        .loading-status {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.8rem;
+            color: var(--primary);
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            margin-bottom: 10px;
+        }
+
+        .loading-sub {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            letter-spacing: 0.15em;
+        }
+
+        .loading-indicators {
+            display: flex;
+            gap: 6px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+
+        .loading-dot {
+            width: 5px;
+            height: 5px;
+            background: var(--text-dim);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        .loading-dot.active {
+            background: var(--primary);
+            box-shadow: 0 0 8px var(--primary);
+            transform: scale(1.3);
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb {
+            background: var(--text-dim);
+            border-radius: 4px;
+            border: 2px solid var(--bg);
+        }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+    </style>
+</head>
+<body>
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="pulse-rings">
+            <div class="pulse-ring"></div>
+            <div class="pulse-ring"></div>
+            <div class="pulse-ring"></div>
+            <div class="loading-core"></div>
+        </div>
+        <div class="loading-text-container">
+            <div class="loading-status" id="loadingStatus">LOADING</div>
+            <div class="loading-sub" id="loadingSub">正在加载对比数据</div>
+            <div class="loading-indicators" id="loadingIndicators">
+                <div class="loading-dot active"></div>
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+    <div class="vignette"></div>
+    <div class="noise"></div>
+
+    <div class="relative z-10 container mx-auto px-4 py-8 max-w-7xl">
+        <header class="text-center mb-8">
+            <div class="flex items-center justify-center gap-4 mb-4">
+                <button onclick="goBack()" class="cyber-btn secondary px-4 py-2 rounded-lg flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    <span>返回</span>
+                </button>
+                <h1 class="text-4xl md:text-5xl font-elegant font-black glow-text italic tracking-wide text-[var(--text)]">
+                    基金对比分析
+                </h1>
+            </div>
+            <div class="flex items-center justify-center gap-4">
+                <div class="h-px w-20 bg-gradient-to-r from-transparent to-[var(--text)] opacity-40"></div>
+                <p class="text-[var(--text)]/80 text-sm tracking-[0.3em] uppercase mono font-bold">NORMALIZED COMPARISON</p>
+                <div class="h-px w-20 bg-gradient-to-l from-transparent to-[var(--text)] opacity-40"></div>
+            </div>
+        </header>
+
+        <div class="glass-panel rounded-2xl p-6 md:p-8 mb-8 glow-box">
+            <h3 class="text-xl font-elegant font-black text-[var(--text)] mb-6">对比基金</h3>
+            <div id="fundLegend" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            </div>
+        </div>
+
+        <div class="glass-panel rounded-2xl p-6 md:p-8 mb-8 glow-box">
+            <div class="flex flex-col md:flex-row md:items-center justify-between mb-6">
+                <h3 class="text-xl font-elegant font-black text-[var(--text)] mb-4 md:mb-0">净值走势对比</h3>
+                <div class="flex flex-wrap gap-2">
+                    <button class="period-btn" data-days="30" onclick="loadCompareData(30)">1个月</button>
+                    <button class="period-btn" data-days="90" onclick="loadCompareData(90)">3个月</button>
+                    <button class="period-btn active" data-days="180" onclick="loadCompareData(180)">6个月</button>
+                    <button class="period-btn" data-days="365" onclick="loadCompareData(365)">1年</button>
+                </div>
+            </div>
+            <div id="compareChart"></div>
+            <div class="mt-4 text-center text-xs text-[var(--text-dim)]">
+                归一化基准：起始点 = 100
+            </div>
+        </div>
+
+        <div class="glass-panel rounded-2xl p-6 md:p-8 glow-box">
+            <h3 class="text-xl font-elegant font-black text-[var(--text)] mb-6">区间统计对比</h3>
+            <div id="statsContainer" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5000';
+        
+        let fundCodes = [];
+        let fundNames = [];
+        let compareChart = null;
+        let currentDays = 180;
+        let loadingInterval = null;
+        let canvasFillColor = 'rgba(232, 232, 232, 0.94)';
+        
+        const FUND_COLORS = [
+            { line: '#d2ff00', area: 'rgba(210, 255, 0, 0.15)' },
+            { line: '#00d4ff', area: 'rgba(0, 212, 255, 0.15)' },
+            { line: '#ff6b6b', area: 'rgba(255, 107, 107, 0.15)' },
+            { line: '#a855f7', area: 'rgba(168, 85, 247, 0.15)' }
+        ];
+
+        function showLoading(statusText, subText) {
+            const overlay = document.getElementById('loadingOverlay');
+            document.getElementById('loadingStatus').textContent = statusText;
+            document.getElementById('loadingSub').textContent = subText;
+            overlay.classList.add('active');
+            
+            gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.4 });
+            
+            let dotIndex = 0;
+            const dots = document.querySelectorAll('.loading-dot');
+            loadingInterval = setInterval(() => {
+                dots.forEach((dot, i) => dot.classList.toggle('active', i === dotIndex));
+                dotIndex = (dotIndex + 1) % dots.length;
+            }, 400);
+        }
+
+        function hideLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            gsap.to(overlay, {
+                opacity: 0,
+                duration: 0.4,
+                onComplete: () => {
+                    overlay.classList.remove('active');
+                    clearInterval(loadingInterval);
+                }
+            });
+        }
+
+        function initTheme() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const theme = urlParams.get('theme') || localStorage.getItem('theme') || 'light';
+            
+            if (theme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+            localStorage.setItem('theme', theme);
+            updateCanvasFillColor();
+        }
+        
+        function updateCanvasFillColor() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const isDark = currentTheme === 'dark';
+            
+            if (isDark) {
+                canvasFillColor = 'rgba(26, 28, 24, 0.94)';
+            } else {
+                canvasFillColor = 'rgba(232, 232, 232, 0.94)';
+            }
+        }
+
+        function goBack() {
+            window.history.back();
+        }
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height, dpr;
+        let time = 0;
+
+        function init() {
+            dpr = Math.min(window.devicePixelRatio, 2);
+            width = canvas.width = window.innerWidth * dpr;
+            height = canvas.height = window.innerHeight * dpr;
+            canvas.style.width = window.innerWidth + 'px';
+            canvas.style.height = window.innerHeight + 'px';
+            ctx.scale(dpr, dpr);
+            width /= dpr;
+            height /= dpr;
+        }
+
+        window.addEventListener('resize', init);
+        init();
+
+        const perm = new Uint8Array(512);
+        const p = new Uint8Array(256);
+        for (let i = 0; i < 256; i++) p[i] = i;
+        for (let i = 255; i > 0; i--) {
+            const r = Math.floor(Math.random() * (i + 1));
+            [p[i], p[r]] = [p[r], p[i]];
+        }
+        for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+
+        const grad2 = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[1,0],[-1,0],[0,1],[0,-1],[0,1],[0,-1]];
+
+        function noise2D(x, y) {
+            const F2 = 0.5 * (Math.sqrt(3) - 1);
+            const s = (x + y) * F2;
+            const i = Math.floor(x + s);
+            const j = Math.floor(y + s);
+            const G2 = (3 - Math.sqrt(3)) / 6;
+            const t = (i + j) * G2;
+            const X0 = i - t;
+            const Y0 = j - t;
+            const x0 = x - X0;
+            const y0 = y - Y0;
+            let i1, j1;
+            if (x0 > y0) { i1 = 1; j1 = 0; } else { i1 = 0; j1 = 1; }
+            const x1 = x0 - i1 + G2;
+            const y1 = y0 - j1 + G2;
+            const x2 = x0 - 1 + 2 * G2;
+            const y2 = y0 - 1 + 2 * G2;
+            const ii = i & 255;
+            const jj = j & 255;
+            let n0, n1, n2;
+            let t0 = 0.5 - x0 * x0 - y0 * y0;
+            if (t0 < 0) n0 = 0;
+            else {
+                t0 *= t0;
+                const gi0 = perm[ii + perm[jj]] % 12;
+                n0 = t0 * t0 * (grad2[gi0][0] * x0 + grad2[gi0][1] * y0);
+            }
+            let t1 = 0.5 - x1 * x1 - y1 * y1;
+            if (t1 < 0) n1 = 0;
+            else {
+                t1 *= t1;
+                const gi1 = perm[ii + i1 + perm[jj + j1]] % 12;
+                n1 = t1 * t1 * (grad2[gi1][0] * x1 + grad2[gi1][1] * y1);
+            }
+            let t2 = 0.5 - x2 * x2 - y2 * y2;
+            if (t2 < 0) n2 = 0;
+            else {
+                t2 *= t2;
+                const gi2 = perm[ii + 1 + perm[jj + 1]] % 12;
+                n2 = t2 * t2 * (grad2[gi2][0] * x2 + grad2[gi2][1] * y2);
+            }
+            return 70 * (n0 + n1 + n2);
+        }
+
+        function fbm(x, y, t) {
+            let value = 0;
+            let amplitude = 1;
+            let frequency = 1;
+            const warpX = noise2D(x * 0.001 + t * 0.00002, y * 0.001 + t * 0.000015) * 80;
+            const warpY = noise2D(x * 0.001 - t * 0.000015, y * 0.001 + t * 0.00002) * 80;
+            x += warpX;
+            y += warpY;
+            for (let i = 0; i < 4; i++) {
+                value += amplitude * noise2D(x * frequency * 0.0015 + t * 0.00004, y * frequency * 0.0015 + t * 0.00003);
+                amplitude *= 0.5;
+                frequency *= 2.3;
+            }
+            return value;
+        }
+
+        function getElevation(x, y, t) {
+            let h = fbm(x, y, t);
+            h += Math.sin(x * 0.002 + t * 0.00005) * 40;
+            h += Math.cos(y * 0.002 + t * 0.00004) * 40;
+            h += Math.sin((x + y) * 0.0015 + t * 0.000025) * 30;
+            h += noise2D(x * 0.003 + t * 0.00006, y * 0.003) * 25;
+            return h;
+        }
+
+        function drawContours(t) {
+            const cols = Math.ceil(width / 12) + 1;
+            const rows = Math.ceil(height / 12) + 1;
+            const cellW = width / (cols - 1);
+            const cellH = height / (rows - 1);
+            const field = new Float32Array(cols * rows);
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    field[y * cols + x] = getElevation(x * cellW, y * cellH, t);
+                }
+            }
+            const levels = [];
+            for (let i = -5; i <= 5; i++) {
+                const baseLevel = i * 20;
+                const breathe = Math.sin(t * 0.00015 + i * 0.8) * 8;
+                levels.push(baseLevel + breathe);
+            }
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const isDark = currentTheme === 'dark';
+            levels.forEach((level, idx) => {
+                let alpha = 0.15 + Math.sin(idx * 0.6 + t * 0.0003) * 0.2;
+                if (!isDark) {
+                    alpha = 0.3 + Math.sin(idx * 0.6 + t * 0.0003) * 0.2;
+                }
+                const lineWidth = idx % 2 === 0 ? 1.2 : 0.6;
+                if (isDark) {
+                    ctx.strokeStyle = `rgba(210, 255, 0, ${Math.max(0.08, alpha)})`;
+                } else {
+                    ctx.strokeStyle = `rgba(28, 25, 23, ${Math.max(0.2, alpha)})`;
+                }
+                ctx.lineWidth = lineWidth;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                for (let y = 0; y < rows - 1; y++) {
+                    for (let x = 0; x < cols - 1; x++) {
+                        const i = y * cols + x;
+                        const v1 = field[i];
+                        const v2 = field[i + 1];
+                        const v3 = field[i + cols + 1];
+                        const v4 = field[i + cols];
+                        const cx = x * cellW;
+                        const cy = y * cellH;
+                        let mask = 0;
+                        if (v1 < level) mask |= 1;
+                        if (v2 < level) mask |= 2;
+                        if (v3 < level) mask |= 4;
+                        if (v4 < level) mask |= 8;
+                        if (mask === 0 || mask === 15) continue;
+                        const pts = [];
+                        if ((mask & 3) === 1 || (mask & 3) === 2) {
+                            const t_interp = (level - v1) / (v2 - v1);
+                            pts.push({x: cx + t_interp * cellW, y: cy});
+                        }
+                        if ((mask & 6) === 2 || (mask & 6) === 4) {
+                            const t_interp = (level - v2) / (v3 - v2);
+                            pts.push({x: cx + cellW, y: cy + t_interp * cellH});
+                        }
+                        if ((mask & 12) === 4 || (mask & 12) === 8) {
+                            const t_interp = (level - v4) / (v3 - v4);
+                            pts.push({x: cx + t_interp * cellW, y: cy + cellH});
+                        }
+                        if ((mask & 9) === 8 || (mask & 9) === 1) {
+                            const t_interp = (level - v1) / (v4 - v1);
+                            pts.push({x: cx, y: cy + t_interp * cellH});
+                        }
+                        if (pts.length === 2) {
+                            ctx.moveTo(pts[0].x, pts[0].y);
+                            ctx.lineTo(pts[1].x, pts[1].y);
+                        }
+                    }
+                }
+                ctx.stroke();
+            });
+        }
+
+        const particles = [];
+        for (let i = 0; i < 20; i++) {
+            particles.push({
+                x: Math.random() * window.innerWidth,
+                y: Math.random() * window.innerHeight,
+                vx: (Math.random() - 0.5) * 0.12,
+                vy: (Math.random() - 0.5) * 0.12,
+                size: Math.random() * 1.2 + 0.3,
+                phase: Math.random() * Math.PI * 2
+            });
+        }
+
+        function drawParticles(t) {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const isDark = currentTheme === 'dark';
+            particles.forEach(p => {
+                p.x += p.vx + Math.sin(t * 0.00015 + p.phase) * 0.012;
+                p.y += p.vy + Math.cos(t * 0.00012 + p.phase) * 0.012;
+                if (p.x < 0) p.x = width;
+                if (p.x > width) p.x = 0;
+                if (p.y < 0) p.y = height;
+                if (p.y > height) p.y = 0;
+                const alpha = 0.2 + Math.sin(t * 0.0005 + p.phase) * 0.2;
+                if (isDark) {
+                    ctx.fillStyle = `rgba(210, 255, 0, ${Math.max(0, alpha)})`;
+                } else {
+                    ctx.fillStyle = `rgba(28, 25, 23, ${Math.max(0, alpha)})`;
+                }
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function animate() {
+            ctx.fillStyle = canvasFillColor;
+            ctx.fillRect(0, 0, width, height);
+            time += 16;
+            drawContours(time);
+            drawParticles(time);
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        function initChart() {
+            const chartDom = document.getElementById('compareChart');
+            compareChart = echarts.init(chartDom);
+            
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#d2ff00' : '#1c1917';
+            const gridColor = isDark ? 'rgba(210, 255, 0, 0.1)' : 'rgba(28, 25, 23, 0.1)';
+            
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: isDark ? 'rgba(26, 28, 24, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                    borderColor: isDark ? 'rgba(210, 255, 0, 0.3)' : 'rgba(28, 25, 23, 0.2)',
+                    textStyle: { color: textColor },
+                    formatter: function(params) {
+                        let html = `<div style="font-weight:600;margin-bottom:8px">${params[0].axisValue}</div>`;
+                        params.forEach((item, index) => {
+                            const colorDot = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${FUND_COLORS[index].line};margin-right:8px;"></span>`;
+                            html += `<div style="margin:4px 0">${colorDot}${item.seriesName}: ${item.data.toFixed(2)}</div>`;
+                        });
+                        return html;
+                    }
+                },
+                legend: {
+                    show: false
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    top: '5%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    data: [],
+                    axisLine: { lineStyle: { color: gridColor } },
+                    axisLabel: { 
+                        color: textColor, 
+                        fontSize: 11,
+                        formatter: function(value) {
+                            if (value && value.length >= 10) return value.substring(5);
+                            return value;
+                        }
+                    },
+                    axisTick: { show: false }
+                },
+                yAxis: {
+                    type: 'value',
+                    scale: true,
+                    splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
+                    axisLine: { show: false },
+                    axisLabel: { 
+                        color: textColor, 
+                        fontSize: 11,
+                        formatter: function(value) { return value.toFixed(1); }
+                    }
+                },
+                series: []
+            };
+            
+            compareChart.setOption(option);
+            
+            window.addEventListener('resize', function() {
+                if (compareChart) compareChart.resize();
+            });
+        }
+
+        async function loadCompareData(days) {
+            currentDays = days;
+            
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (parseInt(btn.dataset.days) === days) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            showLoading('LOADING DATA', '正在获取对比数据...');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/get_nav_history_batch?codes=${fundCodes.join(',')}&days=${days}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderChart(data);
+                    renderStats(data);
+                } else {
+                    console.error('获取数据失败:', data.message);
+                }
+            } catch (error) {
+                console.error('请求失败:', error);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function renderChart(data) {
+            if (!compareChart) return;
+            
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#d2ff00' : '#1c1917';
+            const gridColor = isDark ? 'rgba(210, 255, 0, 0.1)' : 'rgba(28, 25, 23, 0.1)';
+            
+            const allDates = new Set();
+            data.funds.forEach(fund => {
+                fund.data.dates.forEach(date => allDates.add(date));
+            });
+            const sortedDates = Array.from(allDates).sort();
+            
+            const series = data.funds.map((fund, index) => {
+                const dateNavMap = {};
+                fund.data.dates.forEach((date, i) => {
+                    dateNavMap[date] = fund.data.navs[i];
+                });
+                
+                const firstNav = fund.data.navs[0];
+                const normalizedNavs = sortedDates.map(date => {
+                    const nav = dateNavMap[date];
+                    if (nav === undefined) return null;
+                    return (nav / firstNav) * 100;
+                });
+                
+                return {
+                    name: fund.name || fund.code,
+                    type: 'line',
+                    smooth: true,
+                    symbol: 'none',
+                    connectNulls: true,
+                    lineStyle: {
+                        width: 2.5,
+                        color: FUND_COLORS[index].line
+                    },
+                    areaStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0, y: 0, x2: 0, y2: 1,
+                            colorStops: [
+                                { offset: 0, color: FUND_COLORS[index].area },
+                                { offset: 1, color: 'rgba(0, 0, 0, 0)' }
+                            ]
+                        }
+                    },
+                    data: normalizedNavs
+                };
+            });
+            
+            compareChart.setOption({
+                xAxis: {
+                    data: sortedDates,
+                    axisLine: { lineStyle: { color: gridColor } },
+                    axisLabel: { color: textColor }
+                },
+                yAxis: {
+                    axisLabel: { color: textColor },
+                    splitLine: { lineStyle: { color: gridColor } }
+                },
+                series: series
+            });
+        }
+
+        function renderStats(data) {
+            const container = document.getElementById('statsContainer');
+            
+            const statsHtml = data.funds.map((fund, index) => {
+                const stats = fund.statistics;
+                const returnClass = stats.total_return >= 0 ? 'up' : 'down';
+                const returnText = stats.total_return >= 0 ? `+${stats.total_return}%` : `${stats.total_return}%`;
+                
+                return `
+                    <div class="stat-card">
+                        <div class="flex items-center justify-center gap-2 mb-3">
+                            <div class="fund-dot fund-dot-${index + 1}"></div>
+                            <span class="font-elegant font-bold text-[var(--text)]">${fund.name || fund.code}</span>
+                        </div>
+                        <div class="space-y-2">
+                            <div>
+                                <div class="stat-label">区间收益</div>
+                                <div class="stat-value ${returnClass}">${returnText}</div>
+                            </div>
+                            <div>
+                                <div class="stat-label">区间最高</div>
+                                <div class="stat-value">${stats.max_nav}</div>
+                            </div>
+                            <div>
+                                <div class="stat-label">区间最低</div>
+                                <div class="stat-value">${stats.min_nav}</div>
+                            </div>
+                            <div>
+                                <div class="stat-label">当前净值</div>
+                                <div class="stat-value">${stats.current_nav}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = statsHtml;
+        }
+
+        function renderFundLegend() {
+            const container = document.getElementById('fundLegend');
+            
+            const legendHtml = fundCodes.map((code, index) => {
+                const name = fundNames[index] || code;
+                return `
+                    <div class="fund-legend-item">
+                        <div class="fund-dot fund-dot-${index + 1}"></div>
+                        <div>
+                            <div class="font-elegant font-bold text-[var(--text)]">${name}</div>
+                            <div class="text-sm text-[var(--text-dim)] mono">${code}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = legendHtml;
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const codesParam = urlParams.get('codes');
+            const namesParam = urlParams.get('names');
+            
+            if (codesParam) {
+                fundCodes = codesParam.split(',');
+                fundNames = namesParam ? namesParam.split(',').map(n => decodeURIComponent(n)) : fundCodes.map(c => c);
+            }
+            
+            renderFundLegend();
+            initChart();
+            loadCompareData(currentDays);
+        });
+    </script>
+</body>
+</html>
