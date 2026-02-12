@@ -1570,6 +1570,141 @@ def health():
     })
 
 
+@app.route('/api/get_indices', methods=['GET'])
+@limiter.limit('30 per minute')
+def get_indices():
+    """
+    获取实时指数涨跌幅
+    """
+    try:
+        indices = []
+        
+        # 获取所有支持的指数
+        for index_name, code in estimator.index_codes.items():
+            try:
+                change = estimator.get_index_change(index_name)
+                indices.append({
+                    'name': index_name,
+                    'code': code,
+                    'change': float(round(change, 2))
+                })
+            except Exception as e:
+                logger.error(f"获取{index_name}数据失败: {e}")
+                # 继续处理其他指数，不返回模拟数据
+                indices.append({
+                    'name': index_name,
+                    'code': code,
+                    'change': None,
+                    'error': str(e)
+                })
+        
+        return jsonify({
+            'success': True,
+            'indices': indices,
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+    except Exception as e:
+        logger.error(f"API错误: {e}")
+        return jsonify({'error': '服务器内部错误'}), 500
+
+
+@app.route('/api/get_fund_detail', methods=['GET'])
+@limiter.limit('10 per minute')
+def get_fund_detail():
+    """
+    获取基金详情，包括实时持仓股票涨跌幅和加权计算
+    GET: /api/get_fund_detail?code=110011
+    """
+    try:
+        fund_code = request.args.get('code', '')
+        if not fund_code:
+            return jsonify({'error': '缺少基金代码'}), 400
+        
+        fund_code = sanitize_fund_code(fund_code)
+        if not fund_code:
+            return jsonify({'error': '基金代码格式错误'}), 400
+        
+        # 获取基金持仓数据
+        try:
+            df = ak.fund_portfolio_hold_em(symbol=fund_code, date="2025")
+            if df.empty:
+                df = ak.fund_portfolio_hold_em(symbol=fund_code, date="2024")
+            
+            if df.empty:
+                return jsonify({
+                    'success': False,
+                    'message': '无法获取基金持仓数据'
+                })
+            
+            # 获取最新季度数据
+            latest_q = sorted(df['季度'].unique(), reverse=True)[0]
+            data = df[df['季度'] == latest_q].head(10)
+            
+            # 处理持仓数据
+            holdings = []
+            codes = []
+            names = []
+            total_ratio = 0
+            
+            for _, row in data.iterrows():
+                code = str(row['股票代码'])
+                name = str(row['股票名称'])
+                ratio = float(row['占净值比例'])
+                
+                holdings.append({
+                    'code': code,
+                    'name': name,
+                    'ratio': ratio
+                })
+                codes.append(code)
+                names.append(name)
+                total_ratio += ratio
+            
+            # 获取股票实时涨跌幅
+            changes = estimator.get_stock_changes(codes, names)
+            
+            # 计算加权贡献
+            for holding in holdings:
+                holding['change'] = changes.get(holding['code'], 0)
+                holding['contribution'] = holding['change'] * holding['ratio'] / 100
+            
+            # 计算基准指数涨跌幅
+            market, benchmark, est_position = estimator.detect_market_and_benchmark(data, "")
+            bench_chg = estimator.get_index_change(benchmark)
+            
+            # 计算剩余部分贡献
+            remaining_ratio = max(0, est_position * 100 - total_ratio)
+            remaining_contrib = bench_chg * (remaining_ratio / 100)
+            
+            # 计算总涨跌幅
+            total_change = sum(h['contribution'] for h in holdings) + remaining_contrib
+            
+            return jsonify({
+                'success': True,
+                'fund_code': fund_code,
+                'holdings': holdings,
+                'total_ratio': float(round(total_ratio, 2)),
+                'remaining_ratio': float(round(remaining_ratio, 2)),
+                'benchmark': benchmark,
+                'benchmark_change': float(round(bench_chg, 2)),
+                'total_change': float(round(total_change, 2)),
+                'calculation_method': '加权平均: 持仓股票涨跌幅 × 占比 + 剩余部分使用基准指数涨跌幅',
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            })
+            
+        except Exception as e:
+            logger.error(f"获取基金详情失败: {e}")
+            return jsonify({
+                'success': False,
+                'message': str(e)
+            })
+        
+    except Exception as e:
+        logger.error(f"API错误: {e}")
+        return jsonify({'error': '服务器内部错误'}), 500
+
+
 # 全局错误处理
 @app.errorhandler(404)
 def not_found(error):

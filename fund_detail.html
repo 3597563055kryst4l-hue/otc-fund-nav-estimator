@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>基金详情 - 实时持仓分析</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* 浅色模式变量 */
+            --primary: #1c1917;
+            --primary-dim: rgba(28, 25, 23, 0.6);
+            --bg: #e8e8e8;
+            --surface: rgba(232, 232, 232, 0.95);
+            --card-bg: #E8EDE3;
+            --btn-bg: #D0D9C6;
+            --input-bg: #F9FAF7;
+            --text: #1c1917;
+            --text-dim: #6b7280;
+            --danger: #dc2626;
+            --success: #059669;
+            --card-shadow: 0 6px 24px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.12);
+            --border-color: rgba(229, 231, 235, 1);
+        }
+        
+        /* 深色模式变量 */
+        [data-theme="dark"] {
+            --primary: #d2ff00;
+            --primary-dim: rgba(210, 255, 0, 0.6);
+            --bg: #1a1c18;
+            --surface: rgba(30, 33, 26, 0.85);
+            --card-bg: rgba(26, 28, 24, 0.95);
+            --btn-bg: rgba(210, 255, 0, 0.15);
+            --input-bg: rgba(10, 12, 8, 0.7);
+            --text: #d2ff00;
+            --text-dim: #a0a598;
+            --danger: #ff5252;
+            --success: #d2ff00;
+            --card-shadow: 0 0 40px rgba(210, 255, 0, 0.1), inset 0 0 40px rgba(210, 255, 0, 0.05);
+            --border-color: rgba(210, 255, 0, 0.25);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            overflow-x: hidden;
+            background: var(--bg);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text);
+            line-height: 1.6;
+            font-weight: 450;
+        }
+        
+        [data-theme="dark"] body {
+            font-family: 'Inter', 'Noto Serif SC', serif;
+            font-weight: 600;
+        }
+        
+        .up {
+            color: var(--danger);
+        }
+        
+        .down {
+            color: var(--success);
+        }
+        
+        .glass-panel {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            box-shadow: var(--card-shadow);
+        }
+        
+        .cyber-btn {
+            background: var(--btn-bg);
+            border: 1px solid var(--border-color);
+            color: var(--primary);
+            transition: all 0.3s ease;
+        }
+        
+        .cyber-btn:hover {
+            box-shadow: 0 0 15px rgba(210, 255, 0, 0.3);
+        }
+        
+        .cyber-btn.danger {
+            background: rgba(220, 38, 38, 0.1);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+        
+        .cyber-btn.danger:hover {
+            box-shadow: 0 0 15px rgba(220, 38, 38, 0.3);
+        }
+        
+        .loading-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--primary);
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 2px;
+            opacity: 0.3;
+            transition: all 0.3s ease;
+        }
+        
+        .loading-dot.active {
+            opacity: 1;
+            box-shadow: 0 0 10px var(--primary);
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary) var(--input-bg);
+        }
+        
+        .table-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        .table-container::-webkit-scrollbar-track {
+            background: var(--input-bg);
+            border-radius: 4px;
+        }
+        
+        .table-container::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 4px;
+        }
+        
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-dim);
+        }
+        
+        /* 动画效果 */
+        @keyframes countUp {
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* 背景效果 */
+        #backgroundCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+        
+        .vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, 
+                transparent 0%, 
+                rgba(243, 244, 246, 0.4) 70%, 
+                rgba(243, 244, 246, 0.95) 100%);
+            z-index: 1;
+        }
+        
+        [data-theme="dark"] .vignette {
+            background: radial-gradient(ellipse at center, 
+                transparent 0%, 
+                rgba(26, 28, 24, 0.4) 70%, 
+                rgba(26, 28, 24, 0.95) 100%);
+        }
+        
+        .noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.05;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center hidden">
+        <div class="text-2xl font-bold text-primary mb-6">加载中...</div>
+        <div class="flex space-x-2">
+            <div class="loading-dot active"></div>
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+        </div>
+        <div id="loadingStatus" class="mt-4 text-sm text-[var(--text-dim)]">正在获取基金详情...</div>
+        <div id="loadingSub" class="mt-2 text-xs text-[var(--text-dim)]">请稍候</div>
+    </div>
+    
+    <!-- Background Animation -->
+    <canvas id="backgroundCanvas" class="fixed inset-0 z-0"></canvas>
+    <div class="vignette fixed inset-0 z-0"></div>
+    <div class="noise fixed inset-0 z-0"></div>
+    
+    <!-- Header -->
+    <header class="relative z-10 py-6 px-4 border-b border-[var(--border-color)]">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <button onclick="goBack()" class="cyber-btn px-4 py-2 rounded-lg flex items-center space-x-2">
+                    <i class="fa fa-arrow-left"></i>
+                    <span>返回</span>
+                </button>
+                <h1 class="text-2xl font-bold text-primary text-shadow">
+                    <span id="fundName">基金详情</span>
+                </h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="text-sm text-[var(--text-dim)]" id="updateTime">
+                    更新时间: --:--:--
+                </div>
+                <button onclick="refreshFundDetail()" class="cyber-btn px-4 py-2 rounded-lg flex items-center space-x-2">
+                    <i class="fa fa-refresh"></i>
+                    <span>刷新</span>
+                </button>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Content -->
+    <main class="relative z-10 container mx-auto py-8 px-4">
+        <!-- Fund Summary -->
+        <div class="glass-panel rounded-2xl p-6 glow-box mb-8">
+            <div class="flex flex-col md:flex-row md:items-center justify-between mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-primary text-shadow" id="fundCode">--</h2>
+                    <p class="text-[var(--text-dim)] mt-1" id="fundType">--</p>
+                </div>
+                <div class="mt-4 md:mt-0 text-right">
+                    <div class="text-3xl font-bold" id="fundChange">--</div>
+                    <div class="text-sm text-[var(--text-dim)] mt-1" id="benchmarkChange">基准指数: --</div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="glass-panel rounded-xl p-4">
+                    <div class="text-sm text-[var(--text-dim)]">持仓股票占比</div>
+                    <div class="text-xl font-bold text-primary" id="totalRatio">--</div>
+                </div>
+                <div class="glass-panel rounded-xl p-4">
+                    <div class="text-sm text-[var(--text-dim)]">剩余部分占比</div>
+                    <div class="text-xl font-bold text-primary" id="remainingRatio">--</div>
+                </div>
+                <div class="glass-panel rounded-xl p-4">
+                    <div class="text-sm text-[var(--text-dim)]">基准指数</div>
+                    <div class="text-xl font-bold text-primary" id="benchmark">--</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Calculation Method -->
+        <div class="glass-panel rounded-2xl p-6 glow-box mb-8">
+            <h3 class="text-xl font-bold text-primary mb-4">加权计算方法</h3>
+            <div class="bg-opacity-20 bg-primary/10 border border-primary/30 rounded-lg p-4">
+                <p class="text-[var(--text)]" id="calculationMethod">
+                    正在加载计算方法...
+                </p>
+            </div>
+        </div>
+        
+        <!-- Holdings Table -->
+        <div class="glass-panel rounded-2xl p-6 glow-box">
+            <h3 class="text-xl font-bold text-primary mb-6">实时持仓股票涨跌幅</h3>
+            <div class="table-container">
+                <table class="w-full min-w-[800px]">
+                    <thead>
+                        <tr class="border-b border-[var(--border-color)]">
+                            <th class="py-3 px-4 text-left text-sm font-bold text-primary">股票名称</th>
+                            <th class="py-3 px-4 text-left text-sm font-bold text-primary">股票代码</th>
+                            <th class="py-3 px-4 text-right text-sm font-bold text-primary">占比</th>
+                            <th class="py-3 px-4 text-right text-sm font-bold text-primary">涨跌幅</th>
+                        </tr>
+                    </thead>
+                    <tbody id="holdingsTable">
+                        <tr>
+                            <td colspan="4" class="py-12 text-center text-[var(--text-dim)]">
+                                正在加载持仓数据...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Footer -->
+    <footer class="relative z-10 border-t border-[var(--border-color)] py-6 px-4 mt-12">
+        <div class="container mx-auto text-center text-sm text-[var(--text-dim)]">
+            <p>数据来源: 真实市场数据 | 仅供参考，不构成投资建议</p>
+        </div>
+    </footer>
+    
+    <script>
+        // API Base URL
+        const API_BASE_URL = 'http://localhost:5000';
+        
+        // 基金代码
+        let fundCode = '';
+        
+        // 页面加载完成后获取基金代码并加载详情
+        document.addEventListener('DOMContentLoaded', function() {
+            // 从URL参数获取基金代码和主题
+            const urlParams = new URLSearchParams(window.location.search);
+            fundCode = urlParams.get('code');
+            const theme = urlParams.get('theme') || localStorage.getItem('theme') || 'light';
+            
+            // 设置主题
+            if (theme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+            localStorage.setItem('theme', theme);
+            
+            if (fundCode) {
+                loadFundDetail();
+            } else {
+                // 没有基金代码，显示错误
+                document.getElementById('fundName').textContent = '错误';
+                document.getElementById('fundCode').textContent = '未找到基金代码';
+                document.getElementById('holdingsTable').innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-12 text-center text-[var(--text-dim)]">
+                            未找到基金代码，请从基金列表页面进入
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            // 初始化背景动画
+            initCanvas();
+            animateCanvas();
+        });
+        
+        // 加载基金详情
+        async function loadFundDetail() {
+            showLoading('获取基金详情', '正在加载实时持仓数据...');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/get_fund_detail?code=${fundCode}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderFundDetail(data);
+                } else {
+                    console.error('获取基金详情失败:', data.message);
+                    alert('获取基金详情失败: ' + data.message);
+                    document.getElementById('holdingsTable').innerHTML = `
+                        <tr>
+                            <td colspan="4" class="py-12 text-center text-[var(--text-dim)]">
+                                获取基金详情失败: ${data.message}
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (error) {
+                console.error('获取基金详情出错:', error);
+                alert('获取基金详情出错: ' + error.message);
+                document.getElementById('holdingsTable').innerHTML = `
+                    <tr>
+                        <td colspan="4" class="py-12 text-center text-[var(--text-dim)]">
+                            获取基金详情出错: ${error.message}
+                        </td>
+                    </tr>
+                `;
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // 渲染基金详情
+        function renderFundDetail(data) {
+            // 更新基金基本信息
+            document.getElementById('fundName').textContent = data.fund_name || '未知基金';
+            document.getElementById('fundCode').textContent = data.fund_code;
+            document.getElementById('fundType').textContent = data.fund_type || '未知类型';
+            document.getElementById('updateTime').textContent = `更新时间: ${data.timestamp}`;
+            
+            // 更新基金表现
+            const fundChangeEl = document.getElementById('fundChange');
+            const changeClass = data.total_change > 0 ? 'up' : data.total_change < 0 ? 'down' : '';
+            const changeText = data.total_change >= 0 ? `+${data.total_change}%` : `${data.total_change}%`;
+            fundChangeEl.className = `text-3xl font-bold ${changeClass}`;
+            fundChangeEl.textContent = changeText;
+            
+            // 更新基准指数
+            document.getElementById('benchmarkChange').textContent = `基准指数: ${data.benchmark_change >= 0 ? '+' : ''}${data.benchmark_change}%`;
+            document.getElementById('benchmark').textContent = data.benchmark || '未知';
+            
+            // 更新占比信息
+            document.getElementById('totalRatio').textContent = `${data.total_ratio}%`;
+            document.getElementById('remainingRatio').textContent = `${data.remaining_ratio}%`;
+            
+            // 更新计算方法
+            document.getElementById('calculationMethod').textContent = data.calculation_method;
+            
+            // 更新持仓表格
+            const holdingsTable = document.getElementById('holdingsTable');
+            if (data.holdings && data.holdings.length > 0) {
+                holdingsTable.innerHTML = data.holdings.map((holding, index) => {
+                    const changeClass = holding.change > 0 ? 'up' : holding.change < 0 ? 'down' : '';
+                    const changeText = holding.change >= 0 ? `+${holding.change}%` : `${holding.change}%`;
+                    
+                    return `
+                        <tr class="border-b border-[var(--border-color)] last:border-0" style="animation: countUp 0.3s ease-out ${index * 0.05}s backwards">
+                            <td class="py-4 px-4">${holding.name}</td>
+                            <td class="py-4 px-4">${holding.code}</td>
+                            <td class="py-4 px-4 text-right">${holding.ratio}%</td>
+                            <td class="py-4 px-4 text-right ${changeClass}">${changeText}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                holdingsTable.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="py-12 text-center text-[var(--text-dim)]">
+                            无法获取基金持仓数据
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+        
+        // 刷新基金详情
+        function refreshFundDetail() {
+            loadFundDetail();
+        }
+        
+        // 返回上一页
+        function goBack() {
+            // 设置标志，指示需要执行分析操作
+            localStorage.setItem('needAnalysis', 'true');
+            window.history.back();
+        }
+        
+        // 显示加载动画
+        function showLoading(statusText, subText) {
+            const overlay = document.getElementById('loadingOverlay');
+            document.getElementById('loadingStatus').textContent = statusText;
+            document.getElementById('loadingSub').textContent = subText;
+            overlay.classList.remove('hidden');
+            
+            let dotIndex = 0;
+            const dots = document.querySelectorAll('.loading-dot');
+            const loadingInterval = setInterval(() => {
+                dots.forEach((dot, i) => dot.classList.toggle('active', i === dotIndex));
+                dotIndex = (dotIndex + 1) % dots.length;
+            }, 400);
+            
+            // 保存定时器ID以便后续清除
+            window.loadingInterval = loadingInterval;
+        }
+        
+        // 隐藏加载动画
+        function hideLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.add('hidden');
+            
+            // 清除定时器
+            if (window.loadingInterval) {
+                clearInterval(window.loadingInterval);
+                window.loadingInterval = null;
+            }
+        }
+        
+        // Canvas 背景动画
+        function initCanvas() {
+            const canvas = document.getElementById('backgroundCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            window.canvas = canvas;
+            window.ctx = ctx;
+        }
+        
+        function animateCanvas() {
+            const canvas = window.canvas;
+            const ctx = window.ctx;
+            if (!canvas || !ctx) return;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制网格
+            ctx.strokeStyle = 'rgba(0, 255, 157, 0.1)';
+            ctx.lineWidth = 1;
+            
+            // 垂直线
+            for (let x = 0; x < canvas.width; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            // 水平线
+            for (let y = 0; y < canvas.height; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // 绘制粒子
+            const time = Date.now() * 0.001;
+            for (let i = 0; i < 50; i++) {
+                const x = Math.sin(time * 0.1 + i) * canvas.width * 0.4 + canvas.width * 0.5;
+                const y = Math.cos(time * 0.15 + i) * canvas.height * 0.4 + canvas.height * 0.5;
+                const size = Math.sin(time * 0.2 + i) * 2 + 2;
+                
+                ctx.fillStyle = 'rgba(0, 255, 157, 0.5)';
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            requestAnimationFrame(animateCanvas);
+        }
+        
+        // 处理窗口大小变化
+        window.addEventListener('resize', function() {
+            const canvas = document.getElementById('backgroundCanvas');
+            if (canvas) {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+        });
+    </script>
+</body>
+</html>

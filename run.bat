@@ -1,22 +1,62 @@
-chcp 65001
 @echo off
-REM 运行桌面上的Python程序
-echo 正在运行桌面上的Python程序...
-python "C:\Users\35975\Desktop\fund\app.py"
 
-REM 如果上面的命令失败，尝试使用python3
-if errorlevel 1 (
-    echo 尝试使用python3...
-    python3 "C:\Users\35975\Desktop\test.py"
+REM Simple start script for FundVision
+
+echo FundVision - Start Script
+echo ================================
+echo.
+
+REM Check Python
+python --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Error: Python not found!
+    echo Please install Python 3.8+ first.
+    echo.
+    pause
+    exit /b 1
 )
 
-REM 如果还是失败，提示用户
-if errorlevel 1 (
-    echo 无法运行Python程序，请检查：
-    echo 1. Python是否正确安装
-    echo 2. Python是否已添加到系统PATH
-    echo 3. test.py文件是否存在
-)
+echo Python found: OK
+echo.
 
-REM 暂停窗口，查看输出结果
+REM Check requirements
+if exist "requirements.txt" (
+    python -c "import flask" >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo Installing dependencies...
+        python -m pip install -r requirements.txt
+        if %errorlevel% neq 0 (
+            echo Error: Failed to install dependencies!
+            pause
+            exit /b 1
+        )
+    )
+    echo Dependencies: OK
+) else (
+    echo Warning: requirements.txt not found
+)
+echo.
+
+REM Start server
+start /MIN cmd /c "python app.py"
+
+REM Wait for server to start
+echo Starting server...
+timeout /t 5 /nobreak >nul
+
+REM Open frontend
+echo Opening frontend...
+start index.html
+
+echo.
+echo Server started successfully!
+echo Access: http://localhost:5000
+echo.
+echo Press any key to stop server...
+pause >nul
+
+REM Stop server
+taskkill /f /im python.exe /fi "WINDOWTITLE eq cmd.exe"
+
+echo Server stopped.
 pause

@@ -12,14 +12,37 @@
     
     <style>
         :root {
+            /* 浅色模式变量 */
+            --primary: #1c1917;
+            --primary-dim: rgba(28, 25, 23, 0.6);
+            --bg: #e8e8e8;
+            --surface: rgba(232, 232, 232, 0.95);
+            --card-bg: #E8EDE3;
+            --btn-bg: #D0D9C6;
+            --input-bg: #F9FAF7;
+            --text: #1c1917;
+            --text-dim: #6b7280;
+            --danger: #dc2626;
+            --success: #059669;
+            --card-shadow: 0 6px 24px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.12);
+            --border-color: rgba(229, 231, 235, 1);
+        }
+        
+        /* 深色模式变量 */
+        [data-theme="dark"] {
             --primary: #d2ff00;
             --primary-dim: rgba(210, 255, 0, 0.6);
             --bg: #1a1c18;
             --surface: rgba(30, 33, 26, 0.85);
-            --text: #f0f2e6;
+            --card-bg: rgba(26, 28, 24, 0.95);
+            --btn-bg: rgba(210, 255, 0, 0.15);
+            --input-bg: rgba(10, 12, 8, 0.7);
+            --text: #d2ff00;
             --text-dim: #a0a598;
             --danger: #ff5252;
             --success: #d2ff00;
+            --card-shadow: 0 0 40px rgba(210, 255, 0, 0.1), inset 0 0 40px rgba(210, 255, 0, 0.05);
+            --border-color: rgba(210, 255, 0, 0.25);
         }
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -27,9 +50,14 @@
         body {
             overflow-x: hidden;
             background: var(--bg);
-            font-family: 'Inter', 'Noto Serif SC', serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             color: var(--text);
             line-height: 1.6;
+            font-weight: 450;
+        }
+        
+        [data-theme="dark"] body {
+            font-family: 'Inter', 'Noto Serif SC', serif;
             font-weight: 600;
         }
 
@@ -40,8 +68,12 @@
             left: 0;
             width: 100%;
             height: 100%;
-            filter: contrast(1.2) brightness(1.1);
+            filter: contrast(1.1) brightness(1.2);
             z-index: 0;
+        }
+        
+        [data-theme="dark"] #canvas {
+            filter: contrast(1.2) brightness(1.1);
         }
 
         .vignette {
@@ -53,9 +85,16 @@
             pointer-events: none;
             background: radial-gradient(ellipse at center, 
                 transparent 0%, 
+                rgba(243, 244, 246, 0.4) 70%, 
+                rgba(243, 244, 246, 0.95) 100%);
+            z-index: 1;
+        }
+        
+        [data-theme="dark"] .vignette {
+            background: radial-gradient(ellipse at center, 
+                transparent 0%, 
                 rgba(26, 28, 24, 0.4) 70%, 
                 rgba(26, 28, 24, 0.95) 100%);
-            z-index: 1;
         }
 
         .noise {
@@ -65,31 +104,40 @@
             width: 100%;
             height: 100%;
             pointer-events: none;
-            opacity: 0.04;
+            opacity: 0.03;
             z-index: 2;
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
         }
 
         .font-elegant {
             font-family: 'Cormorant Garamond', 'Noto Serif SC', serif;
-            font-weight: 700;
+            font-weight: 600;
             letter-spacing: 0.02em;
         }
         
-        .mono { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+        .mono { font-family: 'JetBrains Mono', monospace; font-weight: 500; }
         
         .glow-text {
-            text-shadow: 0 0 10px rgba(210, 255, 0, 0.4), 0 0 30px rgba(210, 255, 0, 0.2);
+            text-shadow: 0 0 8px rgba(28, 25, 23, 0.1), 0 0 20px rgba(28, 25, 23, 0.05);
         }
         
         .glow-box {
+            box-shadow: var(--card-shadow);
+        }
+        
+        [data-theme="dark"] .glow-text {
+            text-shadow: 0 0 10px rgba(210, 255, 0, 0.4), 0 0 30px rgba(210, 255, 0, 0.2);
+        }
+        
+        [data-theme="dark"] .glow-box {
             box-shadow: 0 0 40px rgba(210, 255, 0, 0.1), inset 0 0 40px rgba(210, 255, 0, 0.05);
         }
         
         .glass-panel {
-            background: rgba(22, 24, 20, 0.9);
+            background: var(--card-bg);
             backdrop-filter: blur(16px);
-            border: 1px solid rgba(210, 255, 0, 0.15);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
             position: relative;
             z-index: 10;
         }
@@ -98,94 +146,193 @@
             content: '';
             position: absolute;
             inset: 0;
-            background: linear-gradient(135deg, rgba(210, 255, 0, 0.06) 0%, transparent 50%);
+            background: linear-gradient(135deg, rgba(28, 25, 23, 0.02) 0%, transparent 50%);
             pointer-events: none;
             border-radius: inherit;
         }
         
+        [data-theme="dark"] .glass-panel {
+            background: rgba(22, 24, 20, 0.9);
+            border: 1px solid rgba(210, 255, 0, 0.15);
+        }
+        
+        [data-theme="dark"] .glass-panel::before {
+            background: linear-gradient(135deg, rgba(210, 255, 0, 0.06) 0%, transparent 50%);
+        }
+        
         .cyber-input {
-            background: rgba(10, 12, 8, 0.7);
-            border: 2px solid rgba(210, 255, 0, 0.25);
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
             color: var(--text);
-            transition: all 0.4s ease;
-            font-weight: 600;
+            transition: all 0.3s ease;
+            font-weight: 400;
+            border-radius: 8px;
         }
         
         .cyber-input:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 30px rgba(210, 255, 0, 0.2);
+            box-shadow: 0 0 0 3px var(--primary-dim);
             outline: none;
+            background: var(--input-bg);
+        }
+        
+        [data-theme="dark"] .cyber-input {
+            border: 2px solid rgba(210, 255, 0, 0.25);
+            font-weight: 600;
+        }
+        
+        [data-theme="dark"] .cyber-input:focus {
+            box-shadow: 0 0 30px rgba(210, 255, 0, 0.2);
             background: rgba(10, 12, 8, 0.9);
         }
         
         .cyber-btn {
-            background: linear-gradient(135deg, rgba(210, 255, 0, 0.15), rgba(210, 255, 0, 0.05));
-            border: 2px solid rgba(210, 255, 0, 0.5);
+            background: var(--btn-bg);
+            border: 1px solid var(--border-color);
             color: var(--primary);
             position: relative;
             overflow: hidden;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            font-family: 'Cormorant Garamond', 'Noto Serif SC', serif;
-            font-weight: 700;
-            font-size: 1.1rem;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-weight: 500;
+            font-size: 1rem;
+            letter-spacing: 0.05em;
+            text-transform: none;
+            border-radius: 8px;
         }
         
         .cyber-btn:hover {
-            background: rgba(210, 255, 0, 0.25);
-            box-shadow: 0 0 50px rgba(210, 255, 0, 0.3);
-            transform: translateY(-2px);
-            letter-spacing: 0.2em;
+            background: var(--primary-dim);
+            box-shadow: 0 2px 8px var(--primary-dim);
+            transform: translateY(-1px);
+            letter-spacing: 0.08em;
         }
         
         .cyber-btn:disabled {
-            opacity: 0.3;
+            opacity: 0.5;
             cursor: not-allowed;
             transform: none;
-            border-color: rgba(210, 255, 0, 0.2);
+            border-color: var(--border-color);
+            background: var(--input-bg);
         }
 
         .cyber-btn.active {
-            background: rgba(210, 255, 0, 0.35);
-            box-shadow: 0 0 30px rgba(210, 255, 0, 0.4);
+            background: var(--primary-dim);
+            box-shadow: 0 2px 10px var(--primary-dim);
         }
 
         .cyber-btn.secondary {
-            background: rgba(10, 12, 8, 0.5);
-            border-color: rgba(210, 255, 0, 0.3);
+            background: var(--input-bg);
+            border-color: var(--border-color);
             color: var(--text-dim);
         }
 
         .cyber-btn.secondary:hover {
-            background: rgba(210, 255, 0, 0.1);
-            border-color: rgba(210, 255, 0, 0.5);
+            background: var(--input-bg);
+            border-color: var(--primary);
             color: var(--primary);
         }
-
+        
         .cyber-btn.danger {
-            background: rgba(255, 82, 82, 0.1);
-            border-color: rgba(255, 82, 82, 0.5);
-            color: #ff5252;
+            background: rgba(220, 38, 38, 0.08);
+            border-color: rgba(220, 38, 38, 0.3);
+            color: var(--danger);
         }
-
+        
         .cyber-btn.danger:hover {
-            background: rgba(255, 82, 82, 0.25);
-            box-shadow: 0 0 30px rgba(255, 82, 82, 0.3);
+            background: rgba(220, 38, 38, 0.15);
+            box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+        }
+        
+        [data-theme="dark"] .cyber-btn {
+            background: linear-gradient(135deg, rgba(210, 255, 0, 0.15), rgba(210, 255, 0, 0.05));
+            border: 1px solid rgba(210, 255, 0, 0.5);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-weight: 500;
+            font-size: 1rem;
+            letter-spacing: 0.05em;
+            text-transform: none;
+        }
+        
+        [data-theme="dark"] .cyber-btn:hover {
+            background: rgba(210, 255, 0, 0.25);
+            box-shadow: 0 2px 8px rgba(210, 255, 0, 0.3);
+            transform: translateY(-1px);
+            letter-spacing: 0.08em;
+        }
+        
+        [data-theme="dark"] .cyber-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            border-color: rgba(210, 255, 0, 0.2);
+            background: var(--input-bg);
+        }
+        
+        [data-theme="dark"] .cyber-btn.active {
+            background: rgba(210, 255, 0, 0.35);
+            box-shadow: 0 2px 10px rgba(210, 255, 0, 0.4);
+        }
+        
+        [data-theme="dark"] .cyber-btn.secondary {
+            background: var(--input-bg);
+            border-color: rgba(210, 255, 0, 0.3);
+            color: var(--text-dim);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-weight: 500;
+            font-size: 1rem;
+            letter-spacing: 0.05em;
+            text-transform: none;
+        }
+        
+        [data-theme="dark"] .cyber-btn.secondary:hover {
+            background: var(--input-bg);
+            border-color: rgba(210, 255, 0, 0.5);
+            color: rgba(210, 255, 0, 1);
+        }
+        
+        [data-theme="dark"] .cyber-btn.danger {
+            background: rgba(255, 82, 82, 0.1);
+            border-color: rgba(255, 82, 82, 0.3);
+            color: var(--danger);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-weight: 500;
+            font-size: 1rem;
+            letter-spacing: 0.05em;
+            text-transform: none;
+        }
+        
+        [data-theme="dark"] .cyber-btn.danger:hover {
+            background: rgba(255, 82, 82, 0.15);
+            box-shadow: 0 2px 8px rgba(255, 82, 82, 0.2);
+        }
+        
+        /* 确保text-sm类在深色模式下也能正常工作 */
+        .cyber-btn.text-sm {
+            font-size: 0.875rem;
+        }
+        
+        [data-theme="dark"] .cyber-btn.text-sm {
+            font-size: 0.875rem;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: none;
         }
         
         .fund-card {
-            background: rgba(26, 28, 24, 0.95);
-            border: 2px solid rgba(210, 255, 0, 0.12);
-            transition: all 0.4s ease;
+            background: var(--card-bg);
+            border: none;
+            border-radius: 12px;
+            transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
+            box-shadow: var(--card-shadow);
         }
         
         .fund-card:hover {
-            border-color: rgba(210, 255, 0, 0.35);
-            transform: translateX(8px);
-            box-shadow: -4px 0 30px rgba(210, 255, 0, 0.12);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.1);
         }
         
         .fund-card::before {
@@ -197,11 +344,21 @@
             width: 3px;
             background: var(--primary);
             transform: scaleY(0);
-            transition: transform 0.4s ease;
+            transition: transform 0.3s ease;
             opacity: 0.8;
         }
         
         .fund-card:hover::before { transform: scaleY(1); }
+        
+        [data-theme="dark"] .fund-card {
+            background: rgba(26, 28, 24, 0.95);
+            transition: all 0.4s ease;
+        }
+        
+        [data-theme="dark"] .fund-card:hover {
+            transform: translateX(8px);
+            box-shadow: -4px 0 30px rgba(210, 255, 0, 0.12);
+        }
         
         .loading-overlay {
             position: fixed;
@@ -209,7 +366,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(10, 12, 8, 0.95);
+            background: var(--card-bg);
             backdrop-filter: blur(20px);
             z-index: 9999;
             display: none;
@@ -217,15 +374,16 @@
             justify-content: center;
             align-items: center;
             flex-direction: column;
+            border: 1px solid var(--border-color);
         }
 
         .loading-overlay.active { display: flex; opacity: 1; }
 
         .pulse-rings {
             position: relative;
-            width: 200px;
-            height: 200px;
-            margin-bottom: 40px;
+            width: 180px;
+            height: 180px;
+            margin-bottom: 30px;
         }
 
         .pulse-ring {
@@ -234,13 +392,13 @@
             left: 50%;
             transform: translate(-50%, -50%);
             border-radius: 50%;
-            border: 2px solid var(--primary);
-            box-shadow: 0 0 20px rgba(210, 255, 0, 0.3), inset 0 0 20px rgba(210, 255, 0, 0.1);
+            border: 1px solid var(--primary);
+            box-shadow: 0 0 15px rgba(28, 25, 23, 0.1), inset 0 0 15px rgba(28, 25, 23, 0.05);
         }
 
-        .pulse-ring:nth-child(1) { width: 60px; height: 60px; animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
-        .pulse-ring:nth-child(2) { width: 120px; height: 120px; animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.3s; opacity: 0.6; }
-        .pulse-ring:nth-child(3) { width: 180px; height: 180px; animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.6s; opacity: 0.3; }
+        .pulse-ring:nth-child(1) { width: 50px; height: 50px; animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
+        .pulse-ring:nth-child(2) { width: 100px; height: 100px; animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.3s; opacity: 0.6; }
+        .pulse-ring:nth-child(3) { width: 150px; height: 150px; animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.6s; opacity: 0.3; }
 
         @keyframes pulse-ring {
             0% { transform: translate(-50%, -50%) scale(0.8); opacity: 1; }
@@ -252,11 +410,11 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 40px;
-            height: 40px;
+            width: 30px;
+            height: 30px;
             background: var(--primary);
             border-radius: 50%;
-            box-shadow: 0 0 30px var(--primary), 0 0 60px rgba(210, 255, 0, 0.5);
+            box-shadow: 0 0 20px var(--primary), 0 0 40px rgba(28, 25, 23, 0.2);
             animation: core-pulse 1.5s ease-in-out infinite;
         }
 
@@ -268,68 +426,69 @@
         .loading-text-container { text-align: center; z-index: 10; }
 
         .loading-status {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 2rem;
+            font-family: 'Inter', sans-serif;
+            font-size: 1.8rem;
             color: var(--primary);
-            font-weight: 700;
-            letter-spacing: 0.1em;
+            font-weight: 600;
+            letter-spacing: 0.08em;
             margin-bottom: 10px;
-            text-shadow: 0 0 20px rgba(210, 255, 0, 0.3);
+            text-shadow: 0 0 15px rgba(28, 25, 23, 0.1);
         }
 
         .loading-sub {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             color: var(--text-dim);
-            letter-spacing: 0.2em;
+            letter-spacing: 0.15em;
         }
 
         .loading-indicators {
             display: flex;
-            gap: 8px;
-            margin-top: 30px;
+            gap: 6px;
+            margin-top: 20px;
             justify-content: center;
         }
 
         .loading-dot {
-            width: 6px;
-            height: 6px;
-            background: rgba(210, 255, 0, 0.3);
+            width: 5px;
+            height: 5px;
+            background: var(--text-dim);
             border-radius: 50%;
             transition: all 0.3s ease;
         }
-
+        
         .loading-dot.active {
             background: var(--primary);
-            box-shadow: 0 0 10px var(--primary);
-            transform: scale(1.5);
+            box-shadow: 0 0 8px var(--primary);
+            transform: scale(1.3);
         }
-
-        ::-webkit-scrollbar { width: 10px; }
+        
+        ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: var(--bg); }
         ::-webkit-scrollbar-thumb {
-            background: rgba(210, 255, 0, 0.25);
-            border-radius: 5px;
+            background: var(--text-dim);
+            border-radius: 4px;
             border: 2px solid var(--bg);
         }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(210, 255, 0, 0.45); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
         
-        .up { color: var(--danger); text-shadow: 0 0 10px rgba(255, 82, 82, 0.4); }
-        .down { color: var(--success); text-shadow: 0 0 10px rgba(210, 255, 0, 0.4); }
+        .up { color: var(--danger); }
+        .down { color: var(--success); }
         
         @keyframes countUp {
-            from { opacity: 0; transform: translateY(10px); }
+            from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
         }
         
         .animate-number { animation: countUp 0.6s ease-out forwards; }
         
         .metric-box {
-            background: rgba(10, 12, 8, 0.6);
-            border: 1px solid rgba(210, 255, 0, 0.2);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             padding: 12px;
             border-radius: 8px;
             text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
         
         .metric-label {
@@ -343,7 +502,7 @@
         .metric-value {
             font-family: 'JetBrains Mono', monospace;
             font-size: 1.25rem;
-            font-weight: 700;
+            font-weight: 500;
         }
 
         .scan-line {
@@ -351,11 +510,11 @@
             top: 0;
             left: 0;
             width: 100%;
-            height: 2px;
+            height: 1px;
             background: var(--primary);
-            box-shadow: 0 0 10px var(--primary);
+            box-shadow: 0 0 6px var(--primary-dim);
             animation: scan 4s linear infinite;
-            opacity: 0.5;
+            opacity: 0.4;
         }
         
         @keyframes scan { 0% { top: 0%; } 100% { top: 100%; } }
@@ -365,10 +524,10 @@
             background: transparent;
             border: none;
             color: var(--text-dim);
-            padding: 12px 24px;
-            font-family: 'Cormorant Garamond', 'Noto Serif SC', serif;
-            font-weight: 700;
-            font-size: 1rem;
+            padding: 10px 20px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-weight: 500;
+            font-size: 0.95rem;
             cursor: pointer;
             position: relative;
             transition: all 0.3s ease;
@@ -390,7 +549,7 @@
             right: 20%;
             height: 2px;
             background: var(--primary);
-            box-shadow: 0 0 10px var(--primary);
+            box-shadow: 0 0 6px rgba(28, 25, 23, 0.3);
         }
 
         .tab-content {
@@ -407,14 +566,15 @@
             top: 100%;
             left: 0;
             right: 0;
-            background: rgba(22, 24, 20, 0.98);
-            border: 1px solid rgba(210, 255, 0, 0.3);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             margin-top: 4px;
             max-height: 300px;
             overflow-y: auto;
             z-index: 100;
             display: none;
+            box-shadow: var(--card-shadow);
         }
 
         .search-dropdown.active {
@@ -422,42 +582,42 @@
         }
 
         .search-item {
-            padding: 12px 16px;
+            padding: 10px 14px;
             cursor: pointer;
-            border-bottom: 1px solid rgba(210, 255, 0, 0.1);
+            border-bottom: 1px solid var(--border-color);
             transition: all 0.2s ease;
         }
 
         .search-item:hover {
-            background: rgba(210, 255, 0, 0.1);
+            background: var(--primary-dim);
         }
-
+        
         .search-item.selected {
-            background: rgba(210, 255, 0, 0.15);
+            background: var(--primary-dim);
         }
 
         .search-item-code {
             color: var(--primary);
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
 
         .search-item-name {
             color: var(--text);
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             margin-top: 2px;
         }
 
         .search-item-type {
             color: var(--text-dim);
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             margin-top: 2px;
         }
 
         /* 搜索加载动画 */
         .search-loading {
             position: absolute;
-            right: 12px;
+            right: 10px;
             top: 50%;
             transform: translateY(-50%);
             display: flex;
@@ -470,9 +630,9 @@
         }
 
         .search-spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(210, 255, 0, 0.2);
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--text-dim);
             border-top-color: var(--primary);
             border-radius: 50%;
             animation: search-spin 0.8s linear infinite;
@@ -484,8 +644,8 @@
 
         /* 已添加基金列表 */
         .fund-list-item {
-            background: rgba(26, 28, 24, 0.95);
-            border: 1px solid rgba(210, 255, 0, 0.15);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 12px 16px;
             display: flex;
@@ -493,11 +653,13 @@
             align-items: center;
             margin-bottom: 8px;
             transition: all 0.3s ease;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.08);
         }
 
         .fund-list-item:hover {
-            border-color: rgba(210, 255, 0, 0.4);
-            transform: translateX(4px);
+            border-color: var(--primary);
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
         }
 
         .fund-list-empty {
@@ -534,36 +696,69 @@
     <div class="vignette"></div>
     <div class="noise"></div>
 
-    <div class="relative z-10 container mx-auto px-4 py-12 max-w-6xl">
-        <!-- Header -->
-        <header class="text-center mb-16">
-            <h1 class="text-7xl md:text-8xl font-elegant font-black mb-4 glow-text italic tracking-wide">
+    <div class="relative z-10 container mx-auto px-4 py-12 max-w-7xl">
+        <!-- 左侧指数涨跌幅区域 -->
+        <div class="fixed left-4 top-1/2 transform -translate-y-1/2 z-20 hidden lg:block">
+            <div class="glass-panel rounded-2xl p-6 glow-box min-w-[200px]">
+                <h3 class="text-lg font-elegant font-black text-[var(--text)] mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    指数实时涨跌幅
+                </h3>
+                <div id="indexList" class="space-y-3">
+                    <!-- 指数数据将通过JavaScript动态添加 -->
+                    <div class="text-center text-[var(--text-dim)] text-sm py-8">
+                        加载中...
+                    </div>
+                </div>
+                <div class="mt-4 text-xs text-[var(--text-dim)] text-center" id="indexUpdateTime">
+                    更新时间: --:--:--
+                </div>
+            </div>
+        </div>
+        <!-- 右侧内容区域 -->
+        <div class="lg:ml-[240px]">
+            <!-- Header -->
+            <header class="text-center mb-12 relative">
+            <!-- 深色/浅色模式切换按钮 -->
+            <button id="themeToggle" onclick="toggleTheme()" class="absolute top-0 right-0 p-3 rounded-full bg-white/50 border border-gray-300 text-gray-800 transition-all duration-300 hover:bg-white/80 dark:bg-gray-800/50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800/80">
+                <svg id="themeIcon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                </svg>
+            </button>
+            
+            <h1 class="text-7xl md:text-8xl font-elegant font-black mb-4 glow-text italic tracking-wide text-[var(--text)]">
                 FundVision
             </h1>
             <div class="flex items-center justify-center gap-4 mb-2">
-                <div class="h-px w-20 bg-gradient-to-r from-transparent to-[#d2ff00] opacity-60"></div>
-                <p class="text-[#d2ff00]/80 text-sm tracking-[0.5em] uppercase mono font-bold">VALUATION & DRAWDOWN</p>
-                <div class="h-px w-20 bg-gradient-to-l from-transparent to-[#d2ff00] opacity-60"></div>
+                <div class="h-px w-20 bg-gradient-to-r from-transparent to-[var(--text)] opacity-40"></div>
+                <p class="text-[var(--text)]/80 text-sm tracking-[0.5em] uppercase mono font-bold">VALUATION & DRAWDOWN</p>
+                <div class="h-px w-20 bg-gradient-to-l from-transparent to-[var(--text)] opacity-40"></div>
             </div>
-            <p class="text-[#a0a598] text-base font-elegant font-black tracking-widest">基金估值与回撤分析</p>
+            <p class="text-[var(--text-dim)] text-base font-elegant font-black tracking-widest">基金估值与回撤分析</p>
         </header>
 
         <!-- Input Section -->
         <div class="glass-panel rounded-2xl p-8 md:p-12 mb-8 glow-box">
             <div class="flex items-center justify-between mb-8">
-                <h2 class="text-3xl font-elegant font-black text-[#d2ff00] flex items-center gap-4">
+                <h2 class="text-3xl font-elegant font-black text-[var(--text)] flex items-center gap-4">
                     <span class="text-4xl italic opacity-80">01</span>
                     <span>数据输入</span>
                 </h2>
-                <div class="flex gap-3 text-xs mono font-bold">
-                    <span class="px-4 py-2 rounded-full border border-[#d2ff00]/40 text-[#d2ff00] bg-[#d2ff00]/10">VALUATION</span>
-                    <span class="px-4 py-2 rounded-full border border-[#d2ff00]/40 text-[#d2ff00] bg-[#d2ff00]/10">90D HIGH</span>
+                <!-- 浅色模式的标签 -->
+                <div id="lightModeTags" class="flex gap-3 text-xs mono font-bold">
+                    <span class="px-4 py-2 rounded-full text-[#1c1917] bg-[#1c1917]/15 border border-[#1c1917]/40">VALUATION</span>
+                    <span class="px-4 py-2 rounded-full text-[#1c1917] bg-[#1c1917]/15 border border-[#1c1917]/40">90D HIGH</span>
+                </div>
+                <!-- 深色模式的标签 -->
+                <div id="darkModeTags" class="flex gap-3 text-xs mono font-bold hidden">
+                    <span class="px-4 py-2 rounded-full text-[#d2ff00] bg-[#d2ff00]/15 border border-[#d2ff00]/40">VALUATION</span>
+                    <span class="px-4 py-2 rounded-full text-[#d2ff00] bg-[#d2ff00]/15 border border-[#d2ff00]/40">90D HIGH</span>
                 </div>
             </div>
 
             <!-- AI智能解析区域 -->
             <div class="mb-8">
-                <button onclick="toggleAISection()" class="flex items-center gap-2 text-[#d2ff00] hover:text-[#e0ff66] transition-colors mb-4 group">
+                <button onclick="toggleAISection()" class="flex items-center gap-2 text-[var(--text)] hover:text-[var(--primary)] transition-colors mb-4 group">
                     <svg id="aiToggleIcon" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                     </svg>
@@ -571,7 +766,7 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                         AI智能解析
                     </span>
-                    <span class="text-xs text-[#a0a598] font-normal ml-2">粘贴持仓数据，一键批量添加</span>
+                    <span class="text-xs text-[var(--text-dim)] font-normal ml-2">粘贴持仓数据，一键批量添加</span>
                 </button>
                 
                 <div id="aiSection" class="hidden">
@@ -598,18 +793,16 @@
             </div>
 
             <!-- 分隔线 -->
-            <div class="relative my-8">
-                <div class="absolute inset-0 flex items-center">
-                    <div class="w-full border-t border-[#d2ff00]/20"></div>
-                </div>
-                <div class="relative flex justify-center">
-                    <span class="px-4 bg-[#1a1c18] text-[#a0a598] text-sm">或通过以下方式添加</span>
-                </div>
+            <div class="my-8">
+                <!-- 浅色模式的分隔线 -->
+                <div id="lightModeDivider" class="w-full border-t border-[#1c1917]/30"></div>
+                <!-- 深色模式的分隔线 -->
+                <div id="darkModeDivider" class="w-full border-t border-[#d2ff00]/30 hidden"></div>
             </div>
 
             <!-- 手动添加区域 -->
             <div class="mb-6">
-                <h3 class="text-lg font-elegant font-black text-[#d2ff00] mb-4 flex items-center gap-2">
+                <h3 class="text-lg font-elegant font-black text-[var(--text)] mb-4 flex items-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     搜索添加
                 </h3>
@@ -617,7 +810,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
                     <!-- 基金搜索 -->
                     <div class="md:col-span-5 relative">
-                        <label class="block text-xs text-[#a0a598] mb-2 uppercase tracking-wider">基金代码 / 名称</label>
+                        <label class="block text-xs text-[var(--text-dim)] mb-2 uppercase tracking-wider">基金代码 / 名称</label>
                         <div class="relative">
                             <input 
                                 type="text" 
@@ -638,7 +831,7 @@
                     
                     <!-- 持仓金额 -->
                     <div class="md:col-span-4">
-                        <label class="block text-xs text-[#a0a598] mb-2 uppercase tracking-wider">持仓金额</label>
+                        <label class="block text-xs text-[var(--text-dim)] mb-2 uppercase tracking-wider">持仓金额</label>
                         <input 
                             type="number" 
                             id="fundHoldingInput" 
@@ -662,7 +855,7 @@
             <!-- 已添加基金列表 -->
             <div class="mt-6">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-elegant font-black text-[#d2ff00]">
+                    <h3 class="text-lg font-elegant font-black text-[var(--text)]">
                         已添加基金 (<span id="fundCount">0</span>)
                     </h3>
                     <div class="flex gap-2">
@@ -682,7 +875,7 @@
             </div>
 
             <!-- 执行分析按钮 -->
-            <div class="mt-8 pt-6 border-t border-[#d2ff00]/10">
+            <div class="mt-8 pt-6 border-t border-[#1c1917]/10">
                 <button onclick="calculateAnalysis()" id="calcBtn" class="cyber-btn px-8 py-5 rounded-lg w-full flex items-center justify-center gap-3 opacity-40" disabled>
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"></path></svg>
                     <span>执行分析</span>
@@ -695,9 +888,9 @@
             <!-- Summary Cards -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="glass-panel rounded-2xl p-6 glow-box relative overflow-hidden group">
-                    <div class="absolute top-0 right-0 w-32 h-32 bg-[#d2ff00]/10 rounded-full blur-3xl"></div>
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-[#1c1917]/10 rounded-full blur-3xl"></div>
                     <p class="text-[#a0a598] text-xs mono uppercase tracking-widest mb-2 font-bold">Total Assets</p>
-                    <p class="text-3xl font-elegant font-black text-[#f0f2e6] tracking-tight" id="totalHolding">¥0.00</p>
+                    <p class="text-3xl font-elegant font-black text-[var(--text)] tracking-tight" id="totalHolding">¥0.00</p>
                 </div>
                 
                 <div class="glass-panel rounded-2xl p-6 glow-box relative overflow-hidden">
@@ -708,13 +901,13 @@
                 <div class="glass-panel rounded-2xl p-6 glow-box relative overflow-hidden">
                     <p class="text-[#a0a598] text-xs mono uppercase tracking-widest mb-2 font-bold">Avg Drawdown</p>
                     <p class="text-3xl font-elegant font-black mono tracking-tight down" id="avgDrawdown">0.00%</p>
-                    <p class="text-xs text-[#5a5d52] mt-1">vs 90D High</p>
+                    <p class="text-xs text-[#6b7280] mt-1">vs 90D High</p>
                 </div>
             </div>
 
             <!-- Detail List -->
             <div>
-                <h3 class="text-2xl font-elegant font-black text-[#d2ff00]/90 mb-6 flex items-center gap-3 italic">
+                <h3 class="text-2xl font-elegant font-black text-[var(--text)]/90 mb-6 flex items-center gap-3 italic">
                     <span class="text-3xl italic opacity-80">02</span>
                     估值与回撤明细（90日高点锚定）
                 </h3>
@@ -753,6 +946,74 @@
                 dots.forEach((dot, i) => dot.classList.toggle('active', i === dotIndex));
                 dotIndex = (dotIndex + 1) % dots.length;
             }, 400);
+        }
+
+        // 获取指数数据
+        async function fetchIndices() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/get_indices`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateIndexDisplay(data.indices, data.timestamp);
+                } else {
+                    console.error('获取指数数据失败:', data.error);
+                    updateIndexDisplay([], new Date().toLocaleTimeString());
+                }
+            } catch (error) {
+                console.error('获取指数数据出错:', error);
+                updateIndexDisplay([], new Date().toLocaleTimeString());
+            }
+        }
+
+        // 更新指数显示
+        function updateIndexDisplay(indices, timestamp) {
+            const indexList = document.getElementById('indexList');
+            const updateTime = document.getElementById('indexUpdateTime');
+            
+            // 更新时间
+            updateTime.textContent = `更新时间: ${timestamp}`;
+            
+            // 清空现有内容
+            indexList.innerHTML = '';
+            
+            if (indices.length === 0) {
+                indexList.innerHTML = `
+                    <div class="text-center text-[var(--text-dim)] text-sm py-8">
+                        无法获取指数数据
+                    </div>
+                `;
+                return;
+            }
+            
+            // 添加指数数据
+            indices.forEach(index => {
+                const indexItem = document.createElement('div');
+                indexItem.className = 'flex justify-between items-center py-2 border-b border-[var(--border-color)] last:border-0';
+                
+                let changeClass = '';
+                let changeText = 'N/A';
+                
+                if (index.change !== null) {
+                    changeClass = index.change > 0 ? 'up' : index.change < 0 ? 'down' : '';
+                    changeText = index.change >= 0 ? `+${index.change}%` : `${index.change}%`;
+                }
+                
+                indexItem.innerHTML = `
+                    <span class="text-sm font-medium text-[var(--text)]">${index.name}</span>
+                    <span class="text-sm font-mono ${changeClass}">${changeText}</span>
+                `;
+                
+                indexList.appendChild(indexItem);
+            });
+        }
+
+        // 定时获取指数数据
+        function startIndexUpdates() {
+            // 立即获取一次
+            fetchIndices();
+            // 每30秒更新一次
+            setInterval(fetchIndices, 30000);
         }
 
         function hideLoading() {
@@ -884,10 +1145,25 @@
                 const breathe = Math.sin(t * 0.00015 + i * 0.8) * 8;
                 levels.push(baseLevel + breathe);
             }
+            // 获取当前主题
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const isDark = currentTheme === 'dark';
             levels.forEach((level, idx) => {
-                const alpha = 0.2 + Math.sin(idx * 0.6 + t * 0.0003) * 0.25;
-                const lineWidth = idx % 2 === 0 ? 1.5 : 0.8;
-                ctx.strokeStyle = `rgba(210, 255, 0, ${Math.max(0.1, alpha)})`;
+                // 为浅色模式设置更大的alpha值，使等高线更明显
+                let alpha = 0.15 + Math.sin(idx * 0.6 + t * 0.0003) * 0.2;
+                if (!isDark) {
+                    // 浅色模式下增加alpha值
+                    alpha = 0.3 + Math.sin(idx * 0.6 + t * 0.0003) * 0.2;
+                }
+                const lineWidth = idx % 2 === 0 ? 1.2 : 0.6;
+                // 根据主题设置颜色
+                if (isDark) {
+                    // 深色模式下使用荧光绿
+                    ctx.strokeStyle = `rgba(210, 255, 0, ${Math.max(0.08, alpha)})`;
+                } else {
+                    // 浅色模式下使用深石色
+                    ctx.strokeStyle = `rgba(28, 25, 23, ${Math.max(0.2, alpha)})`;
+                }
                 ctx.lineWidth = lineWidth;
                 ctx.lineCap = 'round';
                 ctx.beginPath();
@@ -934,35 +1210,48 @@
         }
 
         const particles = [];
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 20; i++) {
             particles.push({
                 x: Math.random() * window.innerWidth,
                 y: Math.random() * window.innerHeight,
-                vx: (Math.random() - 0.5) * 0.15,
-                vy: (Math.random() - 0.5) * 0.15,
-                size: Math.random() * 1.5 + 0.5,
+                vx: (Math.random() - 0.5) * 0.12,
+                vy: (Math.random() - 0.5) * 0.12,
+                size: Math.random() * 1.2 + 0.3,
                 phase: Math.random() * Math.PI * 2
             });
         }
 
         function drawParticles(t) {
+            // 获取当前主题
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const isDark = currentTheme === 'dark';
             particles.forEach(p => {
-                p.x += p.vx + Math.sin(t * 0.00015 + p.phase) * 0.015;
-                p.y += p.vy + Math.cos(t * 0.00012 + p.phase) * 0.015;
+                p.x += p.vx + Math.sin(t * 0.00015 + p.phase) * 0.012;
+                p.y += p.vy + Math.cos(t * 0.00012 + p.phase) * 0.012;
                 if (p.x < 0) p.x = width;
                 if (p.x > width) p.x = 0;
                 if (p.y < 0) p.y = height;
                 if (p.y > height) p.y = 0;
-                const alpha = 0.3 + Math.sin(t * 0.0005 + p.phase) * 0.3;
-                ctx.fillStyle = `rgba(210, 255, 0, ${Math.max(0, alpha)})`;
+                const alpha = 0.2 + Math.sin(t * 0.0005 + p.phase) * 0.2;
+                // 根据主题设置颜色
+                if (isDark) {
+                    // 深色模式下使用荧光绿
+                    ctx.fillStyle = `rgba(210, 255, 0, ${Math.max(0, alpha)})`;
+                } else {
+                    // 浅色模式下使用深石色
+                    ctx.fillStyle = `rgba(28, 25, 23, ${Math.max(0, alpha)})`;
+                }
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
                 ctx.fill();
             });
         }
 
+        // 初始化canvas填充颜色变量
+        let canvasFillColor = 'rgba(232, 232, 232, 0.94)';
+        
         function animate() {
-            ctx.fillStyle = 'rgba(40, 44, 32, 0.08)';
+            ctx.fillStyle = canvasFillColor;
             ctx.fillRect(0, 0, width, height);
             time += 16;
             drawContours(time);
@@ -971,6 +1260,114 @@
         }
         animate();
         // ===== 背景动画结束 =====
+
+        // ===== 主题切换功能 =====
+        function initTheme() {
+            console.log('initTheme function called');
+            // 从本地存储加载主题设置
+            const savedTheme = localStorage.getItem('theme');
+            console.log('Saved theme:', savedTheme);
+            const isDark = savedTheme === 'dark';
+            console.log('Is dark theme:', isDark);
+            
+            // 应用主题
+            if (isDark) {
+                console.log('Applying dark theme');
+                document.documentElement.setAttribute('data-theme', 'dark');
+                updateThemeIcon(true);
+                updateThemeSpecificElements(true);
+            } else {
+                console.log('Applying light theme');
+                document.documentElement.removeAttribute('data-theme');
+                updateThemeIcon(false);
+                updateThemeSpecificElements(false);
+            }
+            
+            // 初始化canvas填充颜色
+            console.log('Initializing canvas fill color');
+            updateCanvasFillColor();
+            console.log('Canvas fill color initialized to:', canvasFillColor);
+        }
+        
+        function updateThemeIcon(isDark) {
+            const themeIcon = document.getElementById('themeIcon');
+            if (isDark) {
+                // 切换到太阳图标
+                themeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>';
+            } else {
+                // 切换到月亮图标
+                themeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>';
+            }
+        }
+        
+        function updateThemeSpecificElements(isDark) {
+            // 更新VALUATION和90D HIGH标签
+            const lightModeTags = document.getElementById('lightModeTags');
+            const darkModeTags = document.getElementById('darkModeTags');
+            if (lightModeTags && darkModeTags) {
+                if (isDark) {
+                    lightModeTags.classList.add('hidden');
+                    darkModeTags.classList.remove('hidden');
+                } else {
+                    lightModeTags.classList.remove('hidden');
+                    darkModeTags.classList.add('hidden');
+                }
+            }
+            
+            // 更新分割线
+            const lightModeDivider = document.getElementById('lightModeDivider');
+            const darkModeDivider = document.getElementById('darkModeDivider');
+            if (lightModeDivider && darkModeDivider) {
+                if (isDark) {
+                    lightModeDivider.classList.add('hidden');
+                    darkModeDivider.classList.remove('hidden');
+                } else {
+                    lightModeDivider.classList.remove('hidden');
+                    darkModeDivider.classList.add('hidden');
+                }
+            }
+        }
+        
+        function toggleTheme() {
+            console.log('toggleTheme function called');
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            console.log('Current theme:', currentTheme);
+            const isDark = currentTheme === 'dark';
+            console.log('Is dark theme:', isDark);
+            
+            // 切换主题
+            if (isDark) {
+                console.log('Switching to light theme');
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+                updateThemeIcon(false);
+                updateThemeSpecificElements(false);
+            } else {
+                console.log('Switching to dark theme');
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+                updateThemeIcon(true);
+                updateThemeSpecificElements(true);
+            }
+            
+            // 更新canvas填充颜色
+            console.log('Updating canvas fill color');
+            updateCanvasFillColor();
+            console.log('Canvas fill color updated to:', canvasFillColor);
+        }
+        
+        function updateCanvasFillColor() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const isDark = currentTheme === 'dark';
+            
+            if (isDark) {
+                // 深色模式下的canvas填充颜色
+                canvasFillColor = 'rgba(26, 28, 24, 0.94)';
+            } else {
+                // 浅色模式下的canvas填充颜色
+                canvasFillColor = 'rgba(232, 232, 232, 0.94)';
+            }
+        }
 
         // ===== AI区域展开/折叠 =====
         function toggleAISection() {
@@ -1186,6 +1583,25 @@
             }
         }
         
+        // 查看基金详情
+        function viewFundDetail(fundCode, fundName) {
+            const theme = document.documentElement.getAttribute('data-theme') || 'light';
+            window.location.href = `fund_detail.html?code=${fundCode}&name=${encodeURIComponent(fundName)}&theme=${theme}`;
+        }
+        
+        // 检查并执行分析操作
+        function checkAndExecuteAnalysis() {
+            const needAnalysis = localStorage.getItem('needAnalysis');
+            if (needAnalysis === 'true') {
+                // 清除标志
+                localStorage.removeItem('needAnalysis');
+                // 执行分析操作
+                setTimeout(() => {
+                    calculateAnalysis();
+                }, 500);
+            }
+        }
+        
         // 直接测试搜索（调试用）
         async function testSearch() {
             const keyword = searchInput.value.trim() || '白酒';
@@ -1259,12 +1675,12 @@
             container.innerHTML = manualFunds.map((fund, index) => `
                 <div class="fund-list-item" style="animation: countUp 0.3s ease-out ${index * 0.05}s backwards">
                     <div>
-                        <div class="font-elegant text-lg text-[#f0f2e6] font-black">${fund.name}</div>
-                        <div class="text-sm text-[#d2ff00]/70 mono font-bold">${fund.code}</div>
+                        <div class="font-elegant text-lg text-[var(--text)] font-black">${fund.name}</div>
+                        <div class="text-sm text-[var(--text)]/70 mono font-bold">${fund.code}</div>
                     </div>
                     <div class="flex items-center gap-4">
                         <div class="text-right">
-                            <div class="font-elegant text-xl text-[#d2ff00] mono font-black">¥${fund.holding.toLocaleString()}</div>
+                            <div class="font-elegant text-xl text-[var(--text)] mono font-black">¥${fund.holding.toLocaleString()}</div>
                         </div>
                         <button onclick="removeFund(${index})" class="cyber-btn danger px-3 py-2 rounded text-sm">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -1323,13 +1739,19 @@
                         renderManualFundList();
                         updateParsedFundsFromManual();
                         alert(`已加载 ${funds.length} 只基金`);
+                        // 检查是否需要执行分析操作
+                        checkAndExecuteAnalysis();
                         return;
                     }
                 }
                 alert('没有缓存的基金数据');
+                // 检查是否需要执行分析操作
+                checkAndExecuteAnalysis();
             } catch (e) {
                 console.error('读取缓存失败:', e);
                 alert('读取缓存失败');
+                // 检查是否需要执行分析操作
+                checkAndExecuteAnalysis();
             }
         }
 
@@ -1348,7 +1770,82 @@
             } catch (e) {
                 console.error('自动加载缓存失败:', e);
             }
+            
+            // 启动指数数据更新
+            startIndexUpdates();
         });
+        
+        // 指数配置
+        const indices = [
+            { code: 'sz399300', name: '沪深300', symbol: 'CSI300' },
+            { code: 'sh000905', name: '中证500', symbol: 'CSI500' },
+            { code: 'sz399006', name: '创业板指', symbol: 'CYB' },
+            { code: 'hkHSI', name: '恒生指数', symbol: 'HSI' },
+            { code: 'usQQQ', name: '纳斯达克100', symbol: 'NASDAQ' },
+            { code: 'usSPX', name: '标普500', symbol: 'SP500' }
+        ];
+        
+        // 加载指数涨跌幅数据
+        async function loadIndexData() {
+            console.log('Loading index data...');
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/get_indices`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch index data');
+                }
+                const data = await response.json();
+                if (data.success) {
+                    renderIndexList(data.indices);
+                } else {
+                    console.error('Failed to load index data:', data.error);
+                    // 使用模拟数据
+                    renderIndexList(getMockIndexData());
+                }
+            } catch (error) {
+                console.error('Error loading index data:', error);
+                // 使用模拟数据
+                renderIndexList(getMockIndexData());
+            }
+        }
+        
+        // 渲染指数涨跌幅列表
+        function renderIndexList(indexData) {
+            const container = document.getElementById('indexList');
+            if (!container) return;
+            
+            container.innerHTML = indices.map(index => {
+                const data = indexData.find(item => item.code === index.code) || getMockIndexData().find(item => item.code === index.code);
+                const changeColor = data.change_pct >= 0 ? 'up' : 'down';
+                const changeSymbol = data.change_pct >= 0 ? '+' : '';
+                
+                return `
+                    <div class="index-item flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-elegant font-black text-[var(--text)]">${index.name}</div>
+                            <div class="text-xs text-[var(--text-dim)]">${data.symbol}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm font-elegant font-black mono ${changeColor}">
+                                ${changeSymbol}${data.change_pct.toFixed(2)}%
+                            </div>
+                            <div class="text-xs text-[var(--text-dim)]">${data.price.toFixed(2)}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 获取模拟指数数据
+        function getMockIndexData() {
+            return [
+                { code: 'sz399300', name: '沪深300', symbol: 'CSI300', price: 3850.25, change_pct: 0.85 },
+                { code: 'sh000905', name: '中证500', symbol: 'CSI500', price: 5280.75, change_pct: 1.20 },
+                { code: 'sz399006', name: '创业板指', symbol: 'CYB', price: 2350.45, change_pct: 1.50 },
+                { code: 'hkHSI', name: '恒生指数', symbol: 'HSI', price: 19850.30, change_pct: -0.50 },
+                { code: 'usQQQ', name: '纳斯达克100', symbol: 'NASDAQ', price: 425.60, change_pct: 0.75 },
+                { code: 'usSPX', name: '标普500', symbol: 'SP500', price: 5120.80, change_pct: 0.35 }
+            ];
+        }
 
         // ===== AI解析功能 =====
         async function parseWithAI() {
@@ -1441,7 +1938,18 @@
             const avgDrawdown = details.reduce((sum, d) => sum + d.synthetic_forecast.estimated_drawdown_pct, 0) / details.length;
             
             animateValue('totalHolding', totalHolding, '¥');
+            
+            // 更新totalChange的颜色
+            const totalChangeEl = document.getElementById('totalChange');
+            if (avgChange > 0) {
+                totalChangeEl.className = 'text-3xl font-elegant font-black mono tracking-tight up';
+            } else if (avgChange < 0) {
+                totalChangeEl.className = 'text-3xl font-elegant font-black mono tracking-tight down';
+            } else {
+                totalChangeEl.className = 'text-3xl font-elegant font-black mono tracking-tight';
+            }
             animateValue('totalChange', avgChange, '', '%');
+            
             animateValue('avgDrawdown', avgDrawdown, '', '%');
             
             const container = document.getElementById('fundDetails');
@@ -1454,48 +1962,51 @@
                 const changeColor = isUp ? 'up' : 'down';
                 
                 return `
-                    <div class="fund-card p-6 rounded-xl" style="animation: countUp 0.6s ease-out ${index * 0.1}s backwards">
-                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-[#d2ff00]/10 pb-4">
+                    <div class="fund-card p-6 rounded-xl cursor-pointer hover:bg-[var(--text)]/5 transition-all duration-300" onclick="viewFundDetail('${fund.fund_code}', '${fund.fund_name}')" style="animation: countUp 0.6s ease-out ${index * 0.1}s backwards">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-4">
                             <div class="flex items-center gap-3">
-                                <h4 class="font-elegant font-black text-2xl text-[#f0f2e6] tracking-wide">${fund.fund_name}</h4>
-                                <span class="px-3 py-1 rounded border border-[#d2ff00]/30 text-[#d2ff00] text-xs mono font-bold bg-[#d2ff00]/5">${fund.fund_code}</span>
+                                <h4 class="font-elegant font-black text-2xl text-[var(--text)] tracking-wide">${fund.fund_name}</h4>
+                                <span class="px-3 py-1 rounded text-[var(--text)] text-xs mono font-bold bg-[var(--text)]/5">${fund.fund_code}</span>
                             </div>
                             <div class="text-right">
                                 <div class="text-3xl font-elegant font-black mono ${changeColor}">
                                     ${isUp ? '+' : ''}${estimate.today_change_pct}%
                                 </div>
-                                <div class="text-xs text-[#5a5d52]">当日估值</div>
+                                <div class="text-xs text-[var(--text-dim)]">当日估值</div>
                             </div>
                         </div>
                         
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                             <div class="metric-box">
                                 <div class="metric-label">90日高点</div>
-                                <div class="metric-value text-[#d2ff00]">${hist.rolling_high_90d}</div>
-                                <div class="text-xs text-[#5a5d52] mt-1">${hist.high_date}</div>
+                                <div class="metric-value text-[var(--text)]">${hist.rolling_high_90d}</div>
+                                <div class="text-xs text-[var(--text-dim)] mt-1">${hist.high_date}</div>
                             </div>
                             <div class="metric-box">
                                 <div class="metric-label">历史回撤</div>
                                 <div class="metric-value down">${hist.drawdown_to_high_pct}%</div>
-                                <div class="text-xs text-[#5a5d52] mt-1">昨日收盘</div>
+                                <div class="text-xs text-[var(--text-dim)] mt-1">昨日收盘</div>
                             </div>
                             <div class="metric-box">
                                 <div class="metric-label">预估回撤</div>
                                 <div class="metric-value ${forecast.estimated_drawdown_pct <= -8 ? 'up' : 'down'}">
                                     ${forecast.estimated_drawdown_pct}%
                                 </div>
-                                <div class="text-xs text-[#5a5d52] mt-1">叠加今日估值</div>
+                                <div class="text-xs text-[var(--text-dim)] mt-1">叠加今日估值</div>
                             </div>
                             <div class="metric-box">
                                 <div class="metric-label">持仓金额</div>
-                                <div class="metric-value text-[#f0f2e6]">¥${fund.holding.toLocaleString()}</div>
-                                <div class="text-xs text-[#5a5d52] mt-1">市值</div>
+                                <div class="metric-value text-[var(--text)]">¥${fund.holding.toLocaleString()}</div>
+                                <div class="text-xs text-[var(--text-dim)] mt-1">市值</div>
                             </div>
                         </div>
                         
-                        <div class="mt-3 pt-3 border-t border-[#d2ff00]/10 flex justify-between items-center text-xs text-[#3a3d35] mono font-bold">
+                        <div class="mt-3 pt-3 flex justify-between items-center text-xs text-[var(--text-dim)] mono font-bold">
                             <span>基准: ${estimate.benchmark} | 预估净值: ${estimate.estimated_nav}</span>
                             <span class="tracking-widest">${estimate.update_time} UPDATE</span>
+                        </div>
+                        <div class="mt-3 pt-3 text-center">
+                            <span class="text-xs text-primary cursor-pointer hover:underline">点击查看详细持仓</span>
                         </div>
                     </div>
                 `;
@@ -1525,6 +2036,36 @@
             }
             requestAnimationFrame(update);
         }
+        
+        // 初始化页面
+        window.addEventListener('DOMContentLoaded', function() {
+            // 初始化主题
+            initTheme();
+            
+            // 初始化基金列表
+            renderManualFundList();
+            
+            // 加载缓存的基金
+            loadCachedFunds();
+            
+            // 检查AI配置
+            checkAIConfig();
+            
+            // 添加主题切换按钮的事件监听器
+            const themeToggleBtn = document.getElementById('themeToggle');
+            if (themeToggleBtn) {
+                console.log('Theme toggle button found:', themeToggleBtn);
+                themeToggleBtn.addEventListener('click', function() {
+                    console.log('Theme toggle button clicked');
+                    toggleTheme();
+                });
+            } else {
+                console.error('Theme toggle button not found');
+            }
+            
+
+        });
     </script>
+</div>
 </body>
 </html>
